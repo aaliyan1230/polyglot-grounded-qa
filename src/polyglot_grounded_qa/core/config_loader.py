@@ -57,9 +57,7 @@ def load_app_config(project_root: Path) -> AppConfig:
     models_cfg = _read_yaml(configs_dir / "models" / "default.yaml")
 
     language_dir = configs_dir / "languages"
-    raw_language_files = {
-        path.stem.replace("-", "_"): _read_yaml(path) for path in language_dir.glob("*.yaml")
-    }
+    raw_language_files = {path.stem: _read_yaml(path) for path in language_dir.glob("*.yaml")}
     languages = {
         tag: _resolve_language_config(tag, raw_language_files) for tag in raw_language_files
     }
