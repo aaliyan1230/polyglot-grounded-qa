@@ -1,0 +1,1 @@
+"""Base language pack module."""

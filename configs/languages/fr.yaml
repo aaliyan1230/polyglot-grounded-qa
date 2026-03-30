@@ -1,0 +1,5 @@
+parent: base
+display_name: French
+prompts:
+  system: "Repondez strictement a partir des preuves recuperees."
+  user: "Question: {query}\nCitez avec les identifiants des segments."
