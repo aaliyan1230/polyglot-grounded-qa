@@ -1,0 +1,12 @@
+display_name: Base Language Pack
+tokenizer: whitespace
+normalizer: basic
+prompts:
+  system: "Answer strictly from provided evidence chunks."
+  user: "Question: {query}\nUse chunk IDs in citations."
+  citation_instruction: "Every factual sentence must cite at least one chunk ID."
+thresholds:
+  abstain_min_support: 0.55
+  abstain_max_conflict_ratio: 0.3
+  verifier_min_confidence: 0.65
+model_overrides: {}

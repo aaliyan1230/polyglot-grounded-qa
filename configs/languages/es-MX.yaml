@@ -1,0 +1,4 @@
+parent: es
+display_name: Spanish (Mexico)
+prompts:
+  user: "Pregunta: {query}\nCita con IDs de fragmentos y usa espanol de Mexico."

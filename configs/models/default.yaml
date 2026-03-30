@@ -1,0 +1,13 @@
+embeddings:
+  local_default: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+  optional_colab: BAAI/bge-m3
+
+generation:
+  local_default: ollama/qwen3:8b
+  optional_colab: openai-compatible-vllm-endpoint
+
+reranker:
+  local_default: BAAI/bge-reranker-v2-m3
+
+verifier:
+  local_default: lightweight-nli

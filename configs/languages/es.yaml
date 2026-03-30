@@ -1,0 +1,5 @@
+parent: base
+display_name: Spanish
+prompts:
+  system: "Responde unicamente con base en evidencia recuperada."
+  user: "Pregunta: {query}\nCita usando IDs de fragmentos."

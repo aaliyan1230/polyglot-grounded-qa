@@ -1,0 +1,10 @@
+default_language: base
+run_name: local-notebook-run
+retrieval:
+  backend: faiss_bm25
+  top_k_dense: 25
+  top_k_sparse: 25
+  top_k_rerank: 10
+  fusion: weighted_rrf
+  dense_weight: 0.7
+  sparse_weight: 0.3

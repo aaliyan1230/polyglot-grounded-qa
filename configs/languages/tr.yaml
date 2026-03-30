@@ -1,0 +1,5 @@
+parent: base
+display_name: Turkish
+prompts:
+  system: "Kanit parcaciklarina dayanarak yanit ver."
+  user: "Soru: {query}\nAlinti yaparken parcacik kimliklerini kullan."
