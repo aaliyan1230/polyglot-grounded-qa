@@ -16,6 +16,10 @@ artifacts/indexes/*
 artifacts/runs/*
 artifacts/figures/*
 artifacts/tables/*
+!artifacts/indexes/.gitkeep
+!artifacts/runs/.gitkeep
+!artifacts/figures/.gitkeep
+!artifacts/tables/.gitkeep
 
 data/corpora/*
 data/benchmarks/*

@@ -39,7 +39,7 @@ class RetrievalConfig(BaseModel):
     sparse_weight: float = Field(default=0.3, ge=0.0)
 
     @model_validator(mode="after")
-    def validate_weights(self) -> "RetrievalConfig":
+    def validate_weights(self) -> RetrievalConfig:
         total = self.dense_weight + self.sparse_weight
         if total <= 0:
             msg = "dense_weight + sparse_weight must be > 0"
