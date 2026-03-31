@@ -102,10 +102,138 @@ def _load_prediction_map(path: Path) -> dict[str, dict[str, Any]]:
 def _append_or_write(path: Path, df: pl.DataFrame) -> None:
     if path.exists():
         existing = pl.read_parquet(path)
-        combined = pl.concat([existing, df], how="vertical_relaxed")
+        all_cols: list[str] = list(existing.columns)
+        for col in df.columns:
+            if col not in all_cols:
+                all_cols.append(col)
+
+        existing_aligned = existing.with_columns(
+            *[pl.lit(None).alias(col) for col in all_cols if col not in existing.columns]
+        ).select(all_cols)
+        incoming_aligned = df.with_columns(
+            *[pl.lit(None).alias(col) for col in all_cols if col not in df.columns]
+        ).select(all_cols)
+
+        combined = pl.concat([existing_aligned, incoming_aligned], how="vertical_relaxed")
         combined.write_parquet(path)
     else:
         df.write_parquet(path)
+
+
+def _build_variant_leaderboard(summary_path: Path, output_dir: Path) -> None:
+    if not summary_path.exists():
+        return
+
+    history = pl.read_parquet(summary_path)
+    required = {
+        "variant",
+        "timestamp_utc",
+        "rows",
+        "abstain_accuracy",
+        "avg_citation_precision",
+        "avg_citation_recall",
+        "avg_answer_token_f1",
+        "grounded_trust_score",
+    }
+    if not required.issubset(set(history.columns)):
+        return
+
+    latest_by_variant = (
+        history.sort("timestamp_utc", descending=True)
+        .group_by("variant")
+        .head(1)
+        .sort("variant")
+        .with_columns(
+            pl.when(pl.col("grounded_trust_score").is_null())
+            .then(
+                0.2 * pl.col("abstain_accuracy")
+                + 0.3 * pl.col("avg_citation_precision")
+                + 0.3 * pl.col("avg_citation_recall")
+                + 0.2 * pl.col("avg_answer_token_f1")
+            )
+            .otherwise(pl.col("grounded_trust_score"))
+            .alias("grounded_trust_score")
+        )
+    )
+
+    baseline = latest_by_variant.filter(pl.col("variant") == "baseline-pipeline")
+    if baseline.height == 0:
+        return
+
+    baseline_row = baseline.row(0, named=True)
+    candidates = latest_by_variant.filter(pl.col("variant") != "baseline-pipeline")
+    if candidates.height == 0:
+        return
+
+    leaderboard = candidates.with_columns(
+        (pl.col("abstain_accuracy") - float(baseline_row["abstain_accuracy"])).alias(
+            "delta_abstain_accuracy"
+        ),
+        (pl.col("avg_citation_precision") - float(baseline_row["avg_citation_precision"])).alias(
+            "delta_avg_citation_precision"
+        ),
+        (pl.col("avg_citation_recall") - float(baseline_row["avg_citation_recall"])).alias(
+            "delta_avg_citation_recall"
+        ),
+        (pl.col("avg_answer_token_f1") - float(baseline_row["avg_answer_token_f1"])).alias(
+            "delta_avg_answer_token_f1"
+        ),
+        (pl.col("grounded_trust_score") - float(baseline_row["grounded_trust_score"])).alias(
+            "delta_grounded_trust_score"
+        ),
+        (
+            (~pl.col("variant").str.contains("oracle", literal=True))
+            & (~pl.col("variant").str.contains("control", literal=True))
+        ).alias("is_practical_variant"),
+    ).with_columns(
+        (
+            pl.col("is_practical_variant")
+            & (pl.col("delta_avg_citation_precision") > 0)
+            & (pl.col("delta_avg_citation_recall") > 0)
+            & (pl.col("delta_grounded_trust_score") > 0)
+        ).alias("passes_grounding_gate")
+    )
+
+    leaderboard = leaderboard.sort(
+        by=["passes_grounding_gate", "delta_grounded_trust_score", "delta_avg_answer_token_f1"],
+        descending=[True, True, True],
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    leaderboard_path = output_dir / "finetune_variant_leaderboard.parquet"
+    leaderboard.write_parquet(leaderboard_path)
+
+    md_path = output_dir / "finetune_variant_leaderboard.md"
+
+    def _to_f64(value: object) -> float:
+        try:
+            if value is None:
+                return 0.0
+            return float(value)
+        except Exception:
+            return 0.0
+
+    lines = [
+        "# Finetune Variant Leaderboard",
+        "",
+        "Ranked by grounding-gate pass status, then `delta_grounded_trust_score`, then `delta_avg_answer_token_f1`.",
+        "",
+        "| variant | practical | gate_pass | d_trust | d_f1 | d_cit_p | d_cit_r |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in leaderboard.iter_rows(named=True):
+        lines.append(
+            "| {variant} | {practical} | {gate_pass} | {d_trust:.4f} | {d_f1:.4f} | {d_cit_p:.4f} | {d_cit_r:.4f} |".format(
+                variant=str(row["variant"]),
+                practical="yes" if bool(row["is_practical_variant"]) else "no",
+                gate_pass="yes" if bool(row["passes_grounding_gate"]) else "no",
+                d_trust=_to_f64(row["delta_grounded_trust_score"]),
+                d_f1=_to_f64(row["delta_avg_answer_token_f1"]),
+                d_cit_p=_to_f64(row["delta_avg_citation_precision"]),
+                d_cit_r=_to_f64(row["delta_avg_citation_recall"]),
+            )
+        )
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -209,6 +337,13 @@ def main() -> None:
         pl.col("citation_precision").mean().alias("avg_citation_precision"),
         pl.col("citation_recall").mean().alias("avg_citation_recall"),
         pl.col("answer_token_f1").mean().alias("avg_answer_token_f1"),
+    ).with_columns(
+        (
+            0.2 * pl.col("abstain_accuracy")
+            + 0.3 * pl.col("avg_citation_precision")
+            + 0.3 * pl.col("avg_citation_recall")
+            + 0.2 * pl.col("avg_answer_token_f1")
+        ).alias("grounded_trust_score")
     )
 
     by_language_df = (
@@ -220,6 +355,14 @@ def main() -> None:
             pl.col("citation_recall").mean().alias("avg_citation_recall"),
             pl.col("answer_token_f1").mean().alias("avg_answer_token_f1"),
         )
+        .with_columns(
+            (
+                0.2 * pl.col("abstain_accuracy")
+                + 0.3 * pl.col("avg_citation_precision")
+                + 0.3 * pl.col("avg_citation_recall")
+                + 0.2 * pl.col("avg_answer_token_f1")
+            ).alias("grounded_trust_score")
+        )
         .with_columns(pl.lit(args.variant).alias("variant"), pl.lit(timestamp_utc).alias("timestamp_utc"))
         .select(
             "variant",
@@ -230,6 +373,7 @@ def main() -> None:
             "avg_citation_precision",
             "avg_citation_recall",
             "avg_answer_token_f1",
+            "grounded_trust_score",
         )
         .sort("language")
     )
@@ -251,9 +395,12 @@ def main() -> None:
         summary_df.write_parquet(summary_output)
         by_language_df.write_parquet(by_language_output)
 
+    _build_variant_leaderboard(summary_output, summary_output.parent)
+
     print(f"Wrote row metrics: {rows_output}")
     print(f"Wrote summary: {summary_output}")
     print(f"Wrote by-language summary: {by_language_output}")
+    print(f"Wrote variant leaderboard: {summary_output.parent / 'finetune_variant_leaderboard.parquet'}")
     print(summary_df)
 
 

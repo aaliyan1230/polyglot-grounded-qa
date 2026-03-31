@@ -161,6 +161,8 @@ uv run python scripts/train_unsloth_sft.py \
 	--val-file data/benchmarks/finetune/formatted/val.text.jsonl
 ```
 
+This training step requires a GPU runtime (Kaggle/Colab). If no adapter checkpoint exists locally, this is the only required manual action.
+
 Evaluate baseline or tuned predictions against finetune test split:
 
 ```bash
@@ -179,6 +181,12 @@ uv run python scripts/run_finetune_eval.py \
 	--predictions artifacts/runs/tuned_predictions.jsonl \
 	--append
 ```
+
+`run_finetune_eval.py` now reports a trust-first composite metric:
+
+- `grounded_trust_score = 0.2 * abstain_accuracy + 0.3 * citation_precision + 0.3 * citation_recall + 0.2 * answer_token_f1`
+
+Use this score to rank practical variants after enforcing citation precision/recall gates.
 
 Normalize raw model outputs before evaluation (when predictions are not already in canonical shape):
 
@@ -209,13 +217,31 @@ uv run python scripts/generate_tuned_predictions.py \
 	--output artifacts/runs/raw_model_predictions.jsonl
 ```
 
+One-command adapter evaluation after checkpoint is available:
+
+```bash
+uv run python scripts/run_trained_adapter_eval.py \
+	--variant tuned-adapter-v1 \
+	--base-model Qwen/Qwen2.5-3B-Instruct \
+	--adapter-path artifacts/runs/finetune_unsloth/lora_adapter \
+	--append
+```
+
 Finetune evaluation outputs:
 
 - `artifacts/runs/finetune_eval_rows.parquet`
 - `artifacts/tables/finetune_eval_summary.parquet`
 - `artifacts/tables/finetune_eval_by_language.parquet`
+- `artifacts/tables/finetune_variant_leaderboard.parquet`
+- `artifacts/tables/finetune_variant_leaderboard.md`
 - `artifacts/tables/final_finetune_eval_deltas.parquet`
 - `artifacts/tables/meaningful_result_snapshot.md`
+
+Leaderboard notes:
+
+- Leaderboard is generated automatically by `scripts/run_finetune_eval.py`.
+- It ranks variants by grounding-gate pass status, then `delta_grounded_trust_score`, then `delta_avg_answer_token_f1`.
+- Practical gate currently requires a non-oracle, non-control variant with positive citation-precision, citation-recall, and trust-score deltas.
 
 Execute notebooks in sequence:
 
