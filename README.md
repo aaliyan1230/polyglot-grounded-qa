@@ -161,6 +161,24 @@ uv run python scripts/train_unsloth_sft.py \
 	--val-file data/benchmarks/finetune/formatted/val.text.jsonl
 ```
 
+Evaluate baseline or tuned predictions against finetune test split:
+
+```bash
+# Baseline pipeline evaluation
+uv run python scripts/run_finetune_eval.py --variant baseline-pipeline
+
+# Tuned model evaluation (predictions jsonl must include: id, answer, citations, abstained)
+uv run python scripts/run_finetune_eval.py \
+	--variant tuned-adapter \
+	--predictions artifacts/runs/tuned_predictions.jsonl
+```
+
+Finetune evaluation outputs:
+
+- `artifacts/runs/finetune_eval_rows.parquet`
+- `artifacts/tables/finetune_eval_summary.parquet`
+- `artifacts/tables/finetune_eval_by_language.parquet`
+
 Execute notebooks in sequence:
 
 ```bash
