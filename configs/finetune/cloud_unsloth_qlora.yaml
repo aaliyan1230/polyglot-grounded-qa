@@ -1,0 +1,48 @@
+run_name: free-cloud-unsloth-qlora
+framework: unsloth
+objective: grounded-policy-sft
+
+model:
+  name: unsloth/Qwen2.5-7B-Instruct-bnb-4bit
+  load_in_4bit: true
+
+lora:
+  rank: 16
+  alpha: 16
+  dropout: 0.0
+  use_gradient_checkpointing: unsloth
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+training:
+  max_seq_length: 2048
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 8
+  learning_rate: 2.0e-4
+  warmup_steps: 20
+  max_steps: 600
+  logging_steps: 10
+  save_steps: 50
+  optim: adamw_8bit
+  seed: 42
+
+data:
+  train: data/benchmarks/finetune/train.jsonl
+  val: data/benchmarks/finetune/val.jsonl
+  test: data/benchmarks/finetune/test.jsonl
+
+runtime:
+  preferred: kaggle-or-colab-free
+  session_strategy: resumable-checkpoints
+  checkpoint_dir: artifacts/runs/finetune_checkpoints
+
+acceptance:
+  min_abstain_precision_delta: 0.05
+  min_citation_precision_delta: 0.03
+  max_answer_regression: 0.02

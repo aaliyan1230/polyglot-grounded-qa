@@ -39,6 +39,12 @@ Optional extras:
 uv sync --extra retrieval --extra evaluation --extra llm
 ```
 
+Fine-tuning data + training helpers:
+
+```bash
+uv sync --extra finetune
+```
+
 ## Quick start
 
 Build a seed index artifact:
@@ -79,6 +85,80 @@ Run ablation sample:
 
 ```bash
 uv run python scripts/run_ablation.py
+```
+
+Build first-pass fine-tuning dataset and balanced splits:
+
+```bash
+uv run python scripts/build_sft_dataset.py
+uv run python scripts/split_sft_dataset.py
+```
+
+Generated outputs:
+
+- `data/benchmarks/finetune/sft_dataset.jsonl`
+- `data/benchmarks/finetune/train.jsonl`
+- `data/benchmarks/finetune/val.jsonl`
+- `data/benchmarks/finetune/test.jsonl`
+
+Run the full fine-tuning data workflow in one command:
+
+```bash
+# Internal-only data pipeline
+uv run python scripts/run_finetune_data_pipeline.py
+
+# Include public multilingual QA ingestion when datasets is installed
+uv run --with datasets python scripts/run_finetune_data_pipeline.py --with-public
+```
+
+Ingest multilingual public QA data (XQuAD) and merge with internal SFT set:
+
+```bash
+uv run --with datasets python scripts/ingest_public_qa.py --max-per-language 150
+uv run python scripts/merge_sft_datasets.py
+uv run python scripts/split_sft_dataset.py --input data/benchmarks/finetune/sft_dataset_merged.jsonl
+```
+
+Analyze SFT dataset quality and export summary tables/report:
+
+```bash
+uv run python scripts/analyze_sft_dataset.py --input data/benchmarks/finetune/sft_dataset_merged.jsonl
+```
+
+Format train/val/test splits for direct training:
+
+```bash
+uv run python scripts/format_sft_for_training.py
+```
+
+Training-ready files:
+
+- `data/benchmarks/finetune/formatted/train.chat.jsonl`
+- `data/benchmarks/finetune/formatted/val.chat.jsonl`
+- `data/benchmarks/finetune/formatted/test.chat.jsonl`
+- `data/benchmarks/finetune/formatted/train.text.jsonl`
+- `data/benchmarks/finetune/formatted/val.text.jsonl`
+- `data/benchmarks/finetune/formatted/test.text.jsonl`
+
+Quality outputs:
+
+- `artifacts/tables/sft_dataset_quality_overall.parquet`
+- `artifacts/tables/sft_dataset_quality_by_language.parquet`
+- `artifacts/tables/sft_dataset_quality_by_source.parquet`
+- `artifacts/tables/sft_dataset_quality_report.md`
+
+Fine-tuning presets:
+
+- `configs/finetune/local_mlx_lora.yaml`
+- `configs/finetune/cloud_unsloth_qlora.yaml`
+
+Run Unsloth SFT training (Kaggle/Colab free GPU target):
+
+```bash
+uv run python scripts/train_unsloth_sft.py \
+	--config configs/finetune/cloud_unsloth_qlora.yaml \
+	--train-file data/benchmarks/finetune/formatted/train.text.jsonl \
+	--val-file data/benchmarks/finetune/formatted/val.text.jsonl
 ```
 
 Execute notebooks in sequence:

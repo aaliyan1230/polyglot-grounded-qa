@@ -44,6 +44,12 @@ llm = [
   "ollama>=0.5.3",
   "httpx>=0.28.0",
 ]
+finetune = [
+  "datasets>=2.20.0",
+  "trl>=0.19.0",
+  "peft>=0.17.0",
+  "accelerate>=1.10.0",
+]
 dev = [
   "pytest>=8.4.0",
   "pytest-cov>=6.2.0",

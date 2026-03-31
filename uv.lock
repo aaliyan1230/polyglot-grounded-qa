@@ -14,6 +14,24 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "accelerate"
+version = "1.13.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ca/14/787e5498cd062640f0f3d92ef4ae4063174f76f9afd29d13fc52a319daae/accelerate-1.13.0.tar.gz", hash = "sha256:d631b4e0f5b3de4aff2d7e9e6857d164810dfc3237d54d017f075122d057b236", size = 402835, upload-time = "2026-03-04T19:34:12.359Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/46/02ac5e262d4af18054b3e922b2baedbb2a03289ee792162de60a865defc5/accelerate-1.13.0-py3-none-any.whl", hash = "sha256:cf1a3efb96c18f7b152eb0fa7490f3710b19c3f395699358f08decca2b8b62e0", size = 383744, upload-time = "2026-03-04T19:34:10.313Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2970,6 +2988,27 @@ wheels = [
 ]
 
 [[package]]
+name = "peft"
+version = "0.18.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "accelerate" },
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d8/48/147b3ea999560b40a34fd78724c7777aa9d18409c2250bdcaf9c4f2db7fc/peft-0.18.1.tar.gz", hash = "sha256:2dd0d6bfce936d1850e48aaddbd250941c5c02fc8ef3237cd8fd5aac35e0bae2", size = 635030, upload-time = "2026-01-09T13:08:01.136Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/14/b4e3f574acf349ae6f61f9c000a77f97a3b315b4bb6ad03791e79ae4a568/peft-0.18.1-py3-none-any.whl", hash = "sha256:0bf06847a3551e3019fc58c440cffc9a6b73e6e2962c95b52e224f77bbdb50f1", size = 556960, upload-time = "2026-01-09T13:07:55.865Z" },
+]
+
+[[package]]
 name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3123,6 +3162,12 @@ evaluation = [
     { name = "ragas" },
     { name = "scikit-learn" },
 ]
+finetune = [
+    { name = "accelerate" },
+    { name = "datasets" },
+    { name = "peft" },
+    { name = "trl" },
+]
 llm = [
     { name = "anthropic" },
     { name = "google-genai" },
@@ -3146,8 +3191,10 @@ retrieval = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", marker = "extra == 'finetune'", specifier = ">=1.10.0" },
     { name = "anthropic", marker = "extra == 'llm'", specifier = ">=0.70.0" },
     { name = "bm25s", marker = "extra == 'retrieval'", specifier = ">=0.2.13" },
+    { name = "datasets", marker = "extra == 'finetune'", specifier = ">=2.20.0" },
     { name = "duckdb", specifier = ">=1.4.0" },
     { name = "faiss-cpu", marker = "extra == 'retrieval'", specifier = ">=1.12.0" },
     { name = "google-genai", marker = "extra == 'llm'", specifier = ">=1.30.0" },
@@ -3162,6 +3209,7 @@ requires-dist = [
     { name = "ollama", marker = "extra == 'llm'", specifier = ">=0.5.3" },
     { name = "openai", marker = "extra == 'llm'", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.3.0" },
+    { name = "peft", marker = "extra == 'finetune'", specifier = ">=0.17.0" },
     { name = "polars", specifier = ">=1.33.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.3.0" },
     { name = "pyarrow", specifier = ">=20.0.0" },
@@ -3175,8 +3223,9 @@ requires-dist = [
     { name = "scikit-learn", marker = "extra == 'evaluation'", specifier = ">=1.7.0" },
     { name = "seaborn", marker = "extra == 'notebooks'", specifier = ">=0.13.2" },
     { name = "sentence-transformers", marker = "extra == 'retrieval'", specifier = ">=5.1.0" },
+    { name = "trl", marker = "extra == 'finetune'", specifier = ">=0.19.0" },
 ]
-provides-extras = ["notebooks", "retrieval", "evaluation", "llm", "dev"]
+provides-extras = ["notebooks", "retrieval", "evaluation", "llm", "finetune", "dev"]
 
 [[package]]
 name = "pre-commit"
@@ -4580,6 +4629,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/35/f8/9c66bfc55361ec6d0e4040a0337fb5924ceb23de4648b8a81ae9d33b2b38/triton-3.6.0-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d002e07d7180fd65e622134fbd980c9a3d4211fb85224b56a0a0efbd422ab72f", size = 188400296, upload-time = "2026-01-20T16:00:56.042Z" },
     { url = "https://files.pythonhosted.org/packages/df/3d/9e7eee57b37c80cec63322c0231bb6da3cfe535a91d7a4d64896fcb89357/triton-3.6.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a17a5d5985f0ac494ed8a8e54568f092f7057ef60e1b0fa09d3fd1512064e803", size = 188273063, upload-time = "2026-01-20T16:01:07.278Z" },
     { url = "https://files.pythonhosted.org/packages/f6/56/6113c23ff46c00aae423333eb58b3e60bdfe9179d542781955a5e1514cb3/triton-3.6.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:46bd1c1af4b6704e554cad2eeb3b0a6513a980d470ccfa63189737340c7746a7", size = 188397994, upload-time = "2026-01-20T16:01:14.236Z" },
+]
+
+[[package]]
+name = "trl"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "accelerate" },
+    { name = "datasets" },
+    { name = "packaging" },
+    { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cf/38/8d2cefaa1bb2089dee5a969b24ed14aa519a162c8b169d7991a9a8a18bfe/trl-1.0.0.tar.gz", hash = "sha256:529f447b77007c8d181a3cf3d8b1b6427888cac9ee1e6d583bd0dbda78165ed4", size = 536166, upload-time = "2026-03-30T21:17:37.261Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/1c/9ac86f514e53935c06b6002ada9144b545ebee5230d60a5b950b18408be5/trl-1.0.0-py3-none-any.whl", hash = "sha256:c45700cb6aa8723e5db1dd8773297f642715accab1ca7754b56e6d50a37dfb1d", size = 630815, upload-time = "2026-03-30T21:17:35.274Z" },
 ]
 
 [[package]]

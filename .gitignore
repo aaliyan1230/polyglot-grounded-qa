@@ -27,3 +27,4 @@ data/benchmarks/*
 !data/benchmarks/.gitkeep
 
 .env
+docs

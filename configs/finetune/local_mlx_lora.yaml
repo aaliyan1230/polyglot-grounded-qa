@@ -1,0 +1,41 @@
+run_name: local-m2pro-mlx-lora
+framework: mlx
+objective: grounded-policy-sft
+
+model:
+  name: Qwen/Qwen2.5-3B-Instruct
+  precision: mixed
+
+lora:
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+training:
+  max_seq_length: 1536
+  batch_size: 1
+  gradient_accumulation_steps: 12
+  learning_rate: 1.0e-4
+  warmup_steps: 50
+  max_steps: 1200
+  eval_every_steps: 100
+  save_every_steps: 100
+  seed: 42
+
+data:
+  train: data/benchmarks/finetune/train.jsonl
+  val: data/benchmarks/finetune/val.jsonl
+  test: data/benchmarks/finetune/test.jsonl
+
+acceptance:
+  min_abstain_precision_delta: 0.05
+  min_citation_precision_delta: 0.03
+  max_answer_regression: 0.02
