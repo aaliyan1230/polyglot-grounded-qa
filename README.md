@@ -196,6 +196,11 @@ uv run python scripts/generate_tuned_predictions.py \
 	--mode baseline-pipeline \
 	--output artifacts/runs/raw_model_predictions_control.jsonl
 
+# Grounded heuristic policy variant (non-oracle, retrieval-driven)
+uv run python scripts/generate_tuned_predictions.py \
+	--mode grounded-heuristic \
+	--output artifacts/runs/raw_model_predictions_heuristic.jsonl
+
 # HF + adapter path (for trained LoRA adapters)
 uv run python scripts/generate_tuned_predictions.py \
 	--mode hf-adapter \
@@ -210,6 +215,7 @@ Finetune evaluation outputs:
 - `artifacts/tables/finetune_eval_summary.parquet`
 - `artifacts/tables/finetune_eval_by_language.parquet`
 - `artifacts/tables/final_finetune_eval_deltas.parquet`
+- `artifacts/tables/meaningful_result_snapshot.md`
 
 Execute notebooks in sequence:
 

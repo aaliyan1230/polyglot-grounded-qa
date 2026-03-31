@@ -92,6 +92,49 @@ def _baseline_predictions(rows: list[dict[str, Any]], project_root: Path) -> lis
     return out
 
 
+def _grounded_heuristic_predictions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        sample_id = str(row.get("id", ""))
+        language = str(row.get("language", "base"))
+        query = str(row.get("query", ""))
+        chunks = row.get("retrieved_chunks", [])
+
+        if not isinstance(chunks, list) or not chunks:
+            payload = {
+                "answer": "I do not have enough evidence.",
+                "citations": [],
+                "abstained": True,
+                "reason": "insufficient_evidence",
+            }
+        else:
+            first = chunks[0]
+            chunk_id = str(first.get("chunk_id", ""))
+            text = str(first.get("text", "")).strip()
+
+            # Extract a compact span-like answer from the first sentence for higher precision.
+            answer_span = text.split(".")[0].strip()
+            if not answer_span:
+                answer_span = text[:160].strip()
+
+            payload = {
+                "answer": answer_span,
+                "citations": [chunk_id] if chunk_id else [],
+                "abstained": False,
+                "reason": "",
+            }
+
+        out.append(
+            {
+                "id": sample_id,
+                "language": language,
+                "query": query,
+                "generated_text": json.dumps(payload, ensure_ascii=True),
+            }
+        )
+    return out
+
+
 def _hf_adapter_predictions(
     rows: list[dict[str, Any]],
     base_model: str,
@@ -156,7 +199,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate predictions for finetune evaluation.")
     parser.add_argument(
         "--mode",
-        choices=["baseline-pipeline", "hf-adapter"],
+        choices=["baseline-pipeline", "grounded-heuristic", "hf-adapter"],
         default="baseline-pipeline",
         help="Prediction backend mode.",
     )
@@ -195,6 +238,8 @@ def main() -> None:
 
     if args.mode == "baseline-pipeline":
         preds = _baseline_predictions(rows, project_root)
+    elif args.mode == "grounded-heuristic":
+        preds = _grounded_heuristic_predictions(rows)
     else:
         preds = _hf_adapter_predictions(
             rows=rows,
