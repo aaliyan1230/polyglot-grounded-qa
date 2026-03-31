@@ -5,11 +5,16 @@ from pathlib import Path
 import polars as pl
 
 from polyglot_grounded_qa import create_default_pipeline
+from polyglot_grounded_qa.core.config_loader import load_app_config
 from polyglot_grounded_qa.utils.io import write_parquet
+from polyglot_grounded_qa.utils.run_metadata import build_run_metadata
 
 
 def main() -> None:
     project_root = Path(__file__).resolve().parents[1]
+    cfg = load_app_config(project_root=project_root)
+    language = cfg.pipeline.default_language
+    metadata = build_run_metadata(cfg=cfg, language=language)
     pipeline = create_default_pipeline(str(project_root))
 
     settings = [
@@ -18,12 +23,13 @@ def main() -> None:
     ]
     rows: list[dict[str, object]] = []
     query = "How does locale inheritance work?"
-    for cfg in settings:
-        pipeline.top_k_rerank = int(cfg["k"])
-        result = pipeline.run(query=query, language="base")
+    for setting in settings:
+        pipeline.top_k_rerank = int(setting["k"])
+        result = pipeline.run(query=query, language=language)
         rows.append(
             {
-                "variant": cfg["name"],
+                **metadata,
+                "variant": setting["name"],
                 "answer": result.answer,
                 "abstained": result.abstained,
                 "citation_count": len(result.citations),

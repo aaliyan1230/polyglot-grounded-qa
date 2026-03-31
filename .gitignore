@@ -25,3 +25,5 @@ data/corpora/*
 data/benchmarks/*
 !data/corpora/.gitkeep
 !data/benchmarks/.gitkeep
+
+.env
