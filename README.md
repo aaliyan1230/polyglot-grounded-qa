@@ -171,6 +171,37 @@ uv run python scripts/run_finetune_eval.py --variant baseline-pipeline
 uv run python scripts/run_finetune_eval.py \
 	--variant tuned-adapter \
 	--predictions artifacts/runs/tuned_predictions.jsonl
+
+# Append to evaluation history for cross-run comparison
+uv run python scripts/run_finetune_eval.py --variant baseline-pipeline --append
+uv run python scripts/run_finetune_eval.py \
+	--variant tuned-adapter \
+	--predictions artifacts/runs/tuned_predictions.jsonl \
+	--append
+```
+
+Normalize raw model outputs before evaluation (when predictions are not already in canonical shape):
+
+```bash
+uv run python scripts/normalize_tuned_predictions.py \
+	--input artifacts/runs/raw_model_predictions.jsonl \
+	--output artifacts/runs/tuned_predictions.jsonl
+```
+
+Generate raw predictions for evaluation:
+
+```bash
+# Control path using current baseline pipeline
+uv run python scripts/generate_tuned_predictions.py \
+	--mode baseline-pipeline \
+	--output artifacts/runs/raw_model_predictions_control.jsonl
+
+# HF + adapter path (for trained LoRA adapters)
+uv run python scripts/generate_tuned_predictions.py \
+	--mode hf-adapter \
+	--base-model Qwen/Qwen2.5-3B-Instruct \
+	--adapter-path artifacts/runs/finetune_unsloth/lora_adapter \
+	--output artifacts/runs/raw_model_predictions.jsonl
 ```
 
 Finetune evaluation outputs:
@@ -178,6 +209,7 @@ Finetune evaluation outputs:
 - `artifacts/runs/finetune_eval_rows.parquet`
 - `artifacts/tables/finetune_eval_summary.parquet`
 - `artifacts/tables/finetune_eval_by_language.parquet`
+- `artifacts/tables/final_finetune_eval_deltas.parquet`
 
 Execute notebooks in sequence:
 

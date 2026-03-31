@@ -99,6 +99,15 @@ def _load_prediction_map(path: Path) -> dict[str, dict[str, Any]]:
     return preds
 
 
+def _append_or_write(path: Path, df: pl.DataFrame) -> None:
+    if path.exists():
+        existing = pl.read_parquet(path)
+        combined = pl.concat([existing, df], how="vertical_relaxed")
+        combined.write_parquet(path)
+    else:
+        df.write_parquet(path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate finetune predictions against grounded SFT test split.")
     parser.add_argument(
@@ -133,6 +142,11 @@ def main() -> None:
         "--by-language-output",
         type=Path,
         default=Path("artifacts/tables/finetune_eval_by_language.parquet"),
+    )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Append rows to existing parquet outputs instead of overwriting.",
     )
     args = parser.parse_args()
 
@@ -228,9 +242,14 @@ def main() -> None:
     summary_output.parent.mkdir(parents=True, exist_ok=True)
     by_language_output.parent.mkdir(parents=True, exist_ok=True)
 
-    rows_df.write_parquet(rows_output)
-    summary_df.write_parquet(summary_output)
-    by_language_df.write_parquet(by_language_output)
+    if args.append:
+        _append_or_write(rows_output, rows_df)
+        _append_or_write(summary_output, summary_df)
+        _append_or_write(by_language_output, by_language_df)
+    else:
+        rows_df.write_parquet(rows_output)
+        summary_df.write_parquet(summary_output)
+        by_language_df.write_parquet(by_language_output)
 
     print(f"Wrote row metrics: {rows_output}")
     print(f"Wrote summary: {summary_output}")
