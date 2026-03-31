@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from polyglot_grounded_qa.adapters.llm.google_adapter import GoogleGenAIAdapter
+from polyglot_grounded_qa.adapters.llm.ollama_adapter import OllamaAdapter
 from polyglot_grounded_qa import create_default_pipeline
 
 
@@ -46,3 +48,29 @@ def test_ollama_backend_without_runtime_falls_back_content(monkeypatch) -> None:
 
     assert result.metadata.get("generator") == "ollama"
     assert "Based on the retrieved evidence" in result.answer
+
+
+def test_google_backend_uses_mocked_adapter_output(monkeypatch) -> None:
+    root = Path(__file__).resolve().parents[2]
+    monkeypatch.setenv("PGQA_GENERATOR_BACKEND", "google")
+    monkeypatch.setattr(GoogleGenAIAdapter, "complete", lambda self, prompt: "mock-google-answer")
+
+    pipeline = create_default_pipeline(str(root))
+    result = pipeline.run("What is grounded QA?", language="base")
+
+    assert result.metadata.get("generator") == "google"
+    assert result.answer == "mock-google-answer"
+    assert len(result.citations) == 1
+
+
+def test_ollama_backend_uses_mocked_adapter_output(monkeypatch) -> None:
+    root = Path(__file__).resolve().parents[2]
+    monkeypatch.setenv("PGQA_GENERATOR_BACKEND", "ollama")
+    monkeypatch.setattr(OllamaAdapter, "complete", lambda self, prompt: "mock-ollama-answer")
+
+    pipeline = create_default_pipeline(str(root))
+    result = pipeline.run("What is grounded QA?", language="base")
+
+    assert result.metadata.get("generator") == "ollama"
+    assert result.answer == "mock-ollama-answer"
+    assert len(result.citations) == 1

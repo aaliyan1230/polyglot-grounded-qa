@@ -69,6 +69,12 @@ PGQA_GENERATOR_BACKEND=ollama uv run python scripts/run_pipeline.py "What is gro
 PGQA_GENERATOR_BACKEND=google uv run python scripts/run_pipeline.py "What is grounded QA?"
 ```
 
+To validate backend wiring without local services or API calls, run mocked selection tests:
+
+```bash
+uv run pytest tests/unit/test_generator_selection.py
+```
+
 Run ablation sample:
 
 ```bash
