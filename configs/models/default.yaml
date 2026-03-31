@@ -3,8 +3,12 @@ embeddings:
   optional_colab: BAAI/bge-m3
 
 generation:
+  backend: baseline
   local_default: ollama/qwen3:8b
   optional_colab: openai-compatible-vllm-endpoint
+  ollama_model: qwen3:8b
+  ollama_host: http://localhost:11434
+  google_model: gemini-2.5-flash
 
 reranker:
   local_default: BAAI/bge-reranker-v2-m3

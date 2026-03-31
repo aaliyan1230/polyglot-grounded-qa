@@ -59,6 +59,16 @@ Run sample eval:
 uv run python scripts/run_eval.py
 ```
 
+Optional generator backend selection (default stays deterministic baseline):
+
+```bash
+# Use local Ollama if available
+PGQA_GENERATOR_BACKEND=ollama uv run python scripts/run_pipeline.py "What is grounded QA?"
+
+# Use Gemini if GEMINI_API_KEY is present
+PGQA_GENERATOR_BACKEND=google uv run python scripts/run_pipeline.py "What is grounded QA?"
+```
+
 Run ablation sample:
 
 ```bash
