@@ -10,6 +10,12 @@ generation:
   ollama_host: http://localhost:11434
   google_model: gemini-2.5-flash
 
+finetune:
+  base_model: Qwen/Qwen2.5-3B-Instruct
+  adapter_path: artifacts/runs/finetune_unsloth/lora_adapter
+  max_new_tokens: 192
+  temperature: 0.0
+
 reranker:
   local_default: BAAI/bge-reranker-v2-m3
 

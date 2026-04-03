@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from polyglot_grounded_qa import create_default_pipeline
+from polyglot_grounded_qa.core.config_loader import load_app_config
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -148,10 +149,19 @@ def _hf_adapter_predictions(
     AutoModelForCausalLM = transformers_module.AutoModelForCausalLM
     AutoTokenizer = transformers_module.AutoTokenizer
 
-    device = "cuda" if torch_module.cuda.is_available() else "cpu"
+    use_cuda = torch_module.cuda.is_available()
+    device = "cuda" if use_cuda else "cpu"
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
-    model = AutoModelForCausalLM.from_pretrained(base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model_kwargs: dict[str, Any] = {}
+    if use_cuda:
+        model_kwargs["device_map"] = "auto"
+        model_kwargs["torch_dtype"] = torch_module.float16
+
+    model = AutoModelForCausalLM.from_pretrained(base_model, **model_kwargs)
 
     if adapter_path:
         peft_module = importlib.import_module("peft")
@@ -218,20 +228,36 @@ def main() -> None:
     parser.add_argument(
         "--base-model",
         type=str,
-        default="Qwen/Qwen2.5-3B-Instruct",
+        default=None,
         help="HF base model for hf-adapter mode.",
     )
     parser.add_argument(
         "--adapter-path",
         type=str,
-        default="",
+        default=None,
         help="Optional LoRA adapter path for hf-adapter mode.",
     )
-    parser.add_argument("--max-new-tokens", type=int, default=192)
-    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--max-new-tokens", type=int, default=None)
+    parser.add_argument("--temperature", type=float, default=None)
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
+    cfg = load_app_config(project_root=project_root)
+    models_cfg = cfg.models if isinstance(cfg.models, dict) else {}
+    finetune_cfg = models_cfg.get("finetune", {}) if isinstance(models_cfg, dict) else {}
+    base_model = str(finetune_cfg.get("base_model", "Qwen/Qwen2.5-3B-Instruct"))
+    adapter_path = str(finetune_cfg.get("adapter_path", ""))
+    max_new_tokens = int(finetune_cfg.get("max_new_tokens", 192))
+    temperature = float(finetune_cfg.get("temperature", 0.0))
+
+    if args.base_model:
+        base_model = args.base_model
+    if args.adapter_path:
+        adapter_path = args.adapter_path
+    if args.max_new_tokens is not None:
+        max_new_tokens = args.max_new_tokens
+    if args.temperature is not None:
+        temperature = args.temperature
     rows = _read_jsonl(project_root / args.test_file)
     if not rows:
         raise ValueError("Test file is empty. Run finetune data pipeline first.")
@@ -243,10 +269,10 @@ def main() -> None:
     else:
         preds = _hf_adapter_predictions(
             rows=rows,
-            base_model=args.base_model,
-            adapter_path=args.adapter_path or None,
-            max_new_tokens=args.max_new_tokens,
-            temperature=args.temperature,
+            base_model=base_model,
+            adapter_path=adapter_path or None,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
         )
 
     out_path = project_root / args.output

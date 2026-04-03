@@ -9,6 +9,13 @@ Notebook-first multilingual grounded QA research repo with a reusable core packa
 - Prioritize reproducible notebook experiments over deployment complexity.
 - Avoid model-gateway lock-in and use direct provider/local adapters.
 
+## Current status (2026-03-31 snapshot)
+
+- Evidence: `artifacts/tables/meaningful_result_snapshot.md`
+- Baseline reference: `baseline-pipeline`
+- Best practical non-oracle variant: `grounded-heuristic-v1` with positive trust deltas
+- Known gaps: verifier is still a placeholder, and dataset lineage is documented separately
+
 ## Architecture
 
 - `src/polyglot_grounded_qa/core`: pipeline orchestration + config loading.
@@ -101,14 +108,27 @@ Generated outputs:
 - `data/benchmarks/finetune/val.jsonl`
 - `data/benchmarks/finetune/test.jsonl`
 
+## SFT dataset lineage (canonical)
+
+- Internal seed: `data/benchmarks/finetune/sft_dataset.jsonl`
+- Public ingest (optional): `data/benchmarks/finetune/public_sft_dataset.jsonl`
+- Merged: `data/benchmarks/finetune/sft_dataset_merged.jsonl`
+- Splits: `data/benchmarks/finetune/train.jsonl`, `val.jsonl`, `test.jsonl`
+- Formatted for training: `data/benchmarks/finetune/formatted/*.text.jsonl` and `*.chat.jsonl`
+
+See `data/benchmarks/finetune/MANIFEST.md` for provenance and script mapping.
+
 Run the full fine-tuning data workflow in one command:
 
 ```bash
-# Internal-only data pipeline
+# Full data pipeline (public ingestion when datasets is available)
 uv run python scripts/run_finetune_data_pipeline.py
 
-# Include public multilingual QA ingestion when datasets is installed
-uv run --with datasets python scripts/run_finetune_data_pipeline.py --with-public
+# If datasets is not installed, use an ephemeral install
+uv run --with datasets python scripts/run_finetune_data_pipeline.py
+
+# Skip public ingestion
+uv run python scripts/run_finetune_data_pipeline.py --no-public
 ```
 
 Ingest multilingual public QA data (XQuAD) and merge with internal SFT set:
@@ -118,6 +138,8 @@ uv run --with datasets python scripts/ingest_public_qa.py --max-per-language 150
 uv run python scripts/merge_sft_datasets.py
 uv run python scripts/split_sft_dataset.py --input data/benchmarks/finetune/sft_dataset_merged.jsonl
 ```
+
+Public rows take precedence during de-duplication when merged.
 
 Analyze SFT dataset quality and export summary tables/report:
 
@@ -151,6 +173,14 @@ Fine-tuning presets:
 
 - `configs/finetune/local_mlx_lora.yaml`
 - `configs/finetune/cloud_unsloth_qlora.yaml`
+
+## Kaggle T4 profile (GPU-safe defaults)
+
+`configs/finetune/cloud_unsloth_qlora.yaml` is calibrated for 1x T4.
+
+If you get 2x T4, try one of these adjustments:
+- Increase `per_device_train_batch_size` to 2, or
+- Reduce `gradient_accumulation_steps` to 8
 
 Run Unsloth SFT training (Kaggle/Colab free GPU target):
 
@@ -212,9 +242,10 @@ uv run python scripts/generate_tuned_predictions.py \
 # HF + adapter path (for trained LoRA adapters)
 uv run python scripts/generate_tuned_predictions.py \
 	--mode hf-adapter \
-	--base-model Qwen/Qwen2.5-3B-Instruct \
-	--adapter-path artifacts/runs/finetune_unsloth/lora_adapter \
 	--output artifacts/runs/raw_model_predictions.jsonl
+
+Defaults for `--base-model`, `--adapter-path`, `--max-new-tokens`, and `--temperature`
+are read from `configs/models/default.yaml` under the `finetune` section.
 ```
 
 One-command adapter evaluation after checkpoint is available:

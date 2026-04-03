@@ -41,7 +41,7 @@ def main() -> None:
     internal_rows = _read_jsonl(project_root / args.internal)
     public_rows = _read_jsonl(project_root / args.public)
 
-    merged = internal_rows + public_rows
+    merged = public_rows + internal_rows
     deduped: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     for row in merged:

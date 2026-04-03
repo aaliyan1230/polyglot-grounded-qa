@@ -21,24 +21,26 @@ lora:
     - down_proj
 
 training:
-  max_seq_length: 2048
-  per_device_train_batch_size: 2
-  gradient_accumulation_steps: 8
+  max_seq_length: 1536
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16
   learning_rate: 2.0e-4
   warmup_steps: 20
-  max_steps: 600
+  max_steps: 400
   logging_steps: 10
   save_steps: 50
   optim: adamw_8bit
   seed: 42
 
 data:
-  train: data/benchmarks/finetune/train.jsonl
-  val: data/benchmarks/finetune/val.jsonl
-  test: data/benchmarks/finetune/test.jsonl
+  train: data/benchmarks/finetune/formatted/train.text.jsonl
+  val: data/benchmarks/finetune/formatted/val.text.jsonl
+  test: data/benchmarks/finetune/formatted/test.text.jsonl
 
 runtime:
   preferred: kaggle-or-colab-free
+  gpu: t4
+  gpu_count: 1
   session_strategy: resumable-checkpoints
   checkpoint_dir: artifacts/runs/finetune_checkpoints
 

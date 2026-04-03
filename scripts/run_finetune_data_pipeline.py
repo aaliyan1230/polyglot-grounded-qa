@@ -21,7 +21,15 @@ def main() -> None:
     parser.add_argument(
         "--with-public",
         action="store_true",
-        help="Include public XQuAD ingestion when datasets package is available.",
+        help=(
+            "Deprecated. Public ingestion is now default when datasets is available; "
+            "use --no-public to disable."
+        ),
+    )
+    parser.add_argument(
+        "--no-public",
+        action="store_true",
+        help="Disable public XQuAD ingestion even if datasets package is available.",
     )
     parser.add_argument(
         "--max-per-language",
@@ -42,7 +50,8 @@ def main() -> None:
 
     _run([py, "scripts/build_sft_dataset.py"], cwd=root)
 
-    if args.with_public:
+    include_public = not args.no_public
+    if include_public:
         if _has_datasets():
             _run(
                 [
@@ -56,7 +65,10 @@ def main() -> None:
                 cwd=root,
             )
         else:
-            print("Skipping public ingest: optional dependency 'datasets' is not installed.")
+            print(
+                "Skipping public ingest: optional dependency 'datasets' is not installed. "
+                "Install it or pass --no-public to silence this message."
+            )
 
     _run([py, "scripts/merge_sft_datasets.py"], cwd=root)
     _run(

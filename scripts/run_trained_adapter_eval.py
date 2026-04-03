@@ -4,6 +4,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
+from polyglot_grounded_qa.core.config_loader import load_app_config
+
 
 def _run(cmd: list[str], cwd: Path) -> None:
     print("Running:", " ".join(cmd))
@@ -23,13 +25,13 @@ def main() -> None:
     parser.add_argument(
         "--base-model",
         type=str,
-        default="Qwen/Qwen2.5-3B-Instruct",
+        default=None,
         help="HF base model used with adapter for inference.",
     )
     parser.add_argument(
         "--adapter-path",
         type=Path,
-        default=Path("artifacts/runs/finetune_unsloth/lora_adapter"),
+        default=None,
         help="Path to saved adapter directory.",
     )
     parser.add_argument(
@@ -51,12 +53,12 @@ def main() -> None:
     parser.add_argument(
         "--max-new-tokens",
         type=int,
-        default=192,
+        default=None,
     )
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.0,
+        default=None,
     )
     parser.add_argument(
         "--append",
@@ -66,7 +68,30 @@ def main() -> None:
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
-    adapter_abs = root / args.adapter_path
+    cfg = load_app_config(project_root=root)
+    models_cfg = cfg.models if isinstance(cfg.models, dict) else {}
+    finetune_cfg = models_cfg.get("finetune", {}) if isinstance(models_cfg, dict) else {}
+    base_model = str(finetune_cfg.get("base_model", "Qwen/Qwen2.5-3B-Instruct"))
+    adapter_path = str(finetune_cfg.get("adapter_path", ""))
+    max_new_tokens = int(finetune_cfg.get("max_new_tokens", 192))
+    temperature = float(finetune_cfg.get("temperature", 0.0))
+
+    if args.base_model:
+        base_model = args.base_model
+    if args.adapter_path is not None:
+        adapter_path = str(args.adapter_path)
+    if args.max_new_tokens is not None:
+        max_new_tokens = args.max_new_tokens
+    if args.temperature is not None:
+        temperature = args.temperature
+
+    if not adapter_path:
+        raise ValueError(
+            "Adapter path is empty. Set models.finetune.adapter_path in configs/models/default.yaml "
+            "or pass --adapter-path."
+        )
+
+    adapter_abs = root / adapter_path
     if not adapter_abs.exists():
         raise FileNotFoundError(
             f"Adapter path does not exist: {adapter_abs}\n"
@@ -84,15 +109,15 @@ def main() -> None:
             "--test-file",
             str(args.test_file),
             "--base-model",
-            args.base_model,
+            base_model,
             "--adapter-path",
-            str(args.adapter_path),
+            adapter_path,
             "--output",
             str(args.raw_output),
             "--max-new-tokens",
-            str(args.max_new_tokens),
+            str(max_new_tokens),
             "--temperature",
-            str(args.temperature),
+            str(temperature),
         ],
         cwd=root,
     )
