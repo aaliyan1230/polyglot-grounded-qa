@@ -28,3 +28,4 @@ data/benchmarks/*
 
 .env
 docs
+kaggle_artifacts/
