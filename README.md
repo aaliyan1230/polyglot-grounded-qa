@@ -72,6 +72,17 @@ Run sample eval:
 uv run python scripts/run_eval.py
 ```
 
+## Runtime guidance (local vs Kaggle)
+
+- `notebooks/00` to `notebooks/70`: local CPU is expected and sufficient.
+- `notebooks/80_final_results.ipynb`: local CPU is expected and sufficient (artifact analysis/export).
+- `notebooks/85_colab_adapter_training.ipynb`: GPU-heavy; use Kaggle/Colab T4.
+
+Note on notebook depth:
+
+- `00` to `70` are intentionally thin, notebook-first wrappers around reusable scripts/components.
+- This is by design to keep logic in `src/` and `scripts/` while preserving narrative checkpoints.
+
 Optional generator backend selection (default stays deterministic baseline):
 
 ```bash
@@ -270,11 +281,47 @@ Finetune evaluation outputs:
 - `artifacts/tables/final_finetune_eval_deltas.parquet`
 - `artifacts/tables/meaningful_result_snapshot.md`
 
+One-command refresh of final result artifacts (no manual notebook cell execution):
+
+```bash
+uv run python scripts/run_final_results_pipeline.py
+```
+
+This command:
+
+- runs eval + ablation,
+- refreshes finetune variant history from existing prediction JSONLs when present,
+- materializes final result tables and reader takeaways,
+- validates artifact contracts.
+
+Validate final artifact contracts directly:
+
+```bash
+# Core-only checks (eval/ablation/final exports)
+uv run python scripts/check_final_artifacts_contract.py --core-only
+
+# Require finetune outputs too
+uv run python scripts/check_final_artifacts_contract.py --require-finetune
+```
+
 Leaderboard notes:
 
 - Leaderboard is generated automatically by `scripts/run_finetune_eval.py`.
 - It ranks variants by grounding-gate pass status, then `delta_grounded_trust_score`, then `delta_avg_answer_token_f1`.
-- Practical gate currently requires a non-oracle, non-control variant with positive citation-precision, citation-recall, and trust-score deltas.
+- Practical gate currently requires a non-oracle, non-control variant with:
+	- `delta_avg_citation_precision > 0.0`
+	- `delta_avg_citation_recall > 0.0`
+	- `delta_grounded_trust_score > 0.0`
+	- `delta_avg_answer_token_f1 >= 0.0`
+	- `delta_abstain_accuracy >= 0.0`
+
+Append a real trained-adapter row (GPU/runtime-heavy):
+
+```bash
+uv run python scripts/run_trained_adapter_eval.py --variant tuned-adapter-v1 --append
+```
+
+If local env lacks `torch/transformers/peft`, run this on Kaggle/Colab T4.
 
 Execute notebooks in sequence:
 
