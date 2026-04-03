@@ -12,6 +12,15 @@ import polars as pl
 from polyglot_grounded_qa import create_default_pipeline
 
 
+PROMOTION_GATE = {
+    "delta_avg_citation_precision_min": 0.0,
+    "delta_avg_citation_recall_min": 0.0,
+    "delta_grounded_trust_score_min": 0.0,
+    "delta_avg_answer_token_f1_min": 0.0,
+    "delta_abstain_accuracy_min": 0.0,
+}
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as f:
@@ -188,9 +197,11 @@ def _build_variant_leaderboard(summary_path: Path, output_dir: Path) -> None:
     ).with_columns(
         (
             pl.col("is_practical_variant")
-            & (pl.col("delta_avg_citation_precision") > 0)
-            & (pl.col("delta_avg_citation_recall") > 0)
-            & (pl.col("delta_grounded_trust_score") > 0)
+            & (pl.col("delta_avg_citation_precision") > PROMOTION_GATE["delta_avg_citation_precision_min"])
+            & (pl.col("delta_avg_citation_recall") > PROMOTION_GATE["delta_avg_citation_recall_min"])
+            & (pl.col("delta_grounded_trust_score") > PROMOTION_GATE["delta_grounded_trust_score_min"])
+            & (pl.col("delta_avg_answer_token_f1") >= PROMOTION_GATE["delta_avg_answer_token_f1_min"])
+            & (pl.col("delta_abstain_accuracy") >= PROMOTION_GATE["delta_abstain_accuracy_min"])
         ).alias("passes_grounding_gate")
     )
 
@@ -217,6 +228,13 @@ def _build_variant_leaderboard(summary_path: Path, output_dir: Path) -> None:
         "# Finetune Variant Leaderboard",
         "",
         "Ranked by grounding-gate pass status, then `delta_grounded_trust_score`, then `delta_avg_answer_token_f1`.",
+        "",
+        "Promotion gate (practical variants only):",
+        "- `delta_avg_citation_precision > 0.0`",
+        "- `delta_avg_citation_recall > 0.0`",
+        "- `delta_grounded_trust_score > 0.0`",
+        "- `delta_avg_answer_token_f1 >= 0.0`",
+        "- `delta_abstain_accuracy >= 0.0`",
         "",
         "| variant | practical | gate_pass | d_trust | d_f1 | d_cit_p | d_cit_r |",
         "|---|---:|---:|---:|---:|---:|---:|",
