@@ -58,7 +58,7 @@ def main() -> None:
     lora_cfg = cfg.get("lora", {})
     train_cfg = cfg.get("training", {})
 
-    model_name = str(model_cfg.get("name", "unsloth/Qwen2.5-7B-Instruct-bnb-4bit"))
+    model_name = str(model_cfg.get("name", "unsloth/Qwen2.5-3B-Instruct-bnb-4bit"))
     max_seq_length = int(train_cfg.get("max_seq_length", 2048))
 
     use_unsloth = True

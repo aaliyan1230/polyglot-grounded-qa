@@ -178,6 +178,8 @@ Fine-tuning presets:
 
 `configs/finetune/cloud_unsloth_qlora.yaml` is calibrated for 1x T4.
 
+Default model: `unsloth/Qwen2.5-3B-Instruct-bnb-4bit`.
+
 If you get 2x T4, try one of these adjustments:
 - Increase `per_device_train_batch_size` to 2, or
 - Reduce `gradient_accumulation_steps` to 8
