@@ -42,6 +42,30 @@ def _build_example(
     }
 
 
+def _make_synthetic_negative(sample_id: str, language: str, source: str, probe_idx: int) -> dict[str, Any]:
+    return {
+        "id": sample_id,
+        "language": language,
+        "query": f"Unanswerable verification probe {probe_idx} for {language}",
+        "retrieved_chunks": [],
+        "target": {
+            "answer": "I do not have enough evidence.",
+            "citations": [],
+            "abstained": True,
+            "reason": "insufficient_evidence",
+        },
+        "label_type": "insufficient_evidence",
+        "source": source,
+    }
+
+
+def _abstain_ratio(rows: list[dict[str, Any]]) -> float:
+    if not rows:
+        return 0.0
+    abstained = sum(1 for row in rows if bool(row.get("target", {}).get("abstained", False)))
+    return abstained / len(rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Ingest public multilingual QA into grounded-QA SFT schema."
@@ -70,6 +94,12 @@ def main() -> None:
         type=int,
         default=40,
         help="Minimum rows per language after fallback bootstrapping.",
+    )
+    parser.add_argument(
+        "--min-abstain-ratio-per-language",
+        type=float,
+        default=0.2,
+        help="Minimum abstention ratio enforced per language after bootstrap/top-up.",
     )
     args = parser.parse_args()
 
@@ -160,20 +190,12 @@ def main() -> None:
         # Add explicit abstention supervision per language.
         for nidx in range(args.synthetic_negatives_per_language):
             rows.append(
-                {
-                    "id": f"public-{counter:07d}",
-                    "language": repo_lang,
-                    "query": f"Unanswerable verification probe {nidx} for {repo_lang}",
-                    "retrieved_chunks": [],
-                    "target": {
-                        "answer": "I do not have enough evidence.",
-                        "citations": [],
-                        "abstained": True,
-                        "reason": "insufficient_evidence",
-                    },
-                    "label_type": "insufficient_evidence",
-                    "source": "synthetic-negative:public",
-                }
+                _make_synthetic_negative(
+                    sample_id=f"public-{counter:07d}",
+                    language=repo_lang,
+                    source="synthetic-negative:public",
+                    probe_idx=nidx,
+                )
             )
             by_language_rows[repo_lang].append(rows[-1])
             counter += 1
@@ -197,6 +219,21 @@ def main() -> None:
             rows.append(copied)
             by_language_rows[language].append(copied)
             counter += 1
+
+    # Top up abstention supervision for sparse languages after answerable bootstrap.
+    for language, lang_rows in by_language_rows.items():
+        probe_idx = sum(1 for row in lang_rows if str(row.get("source", "")).startswith("synthetic-negative"))
+        while lang_rows and _abstain_ratio(lang_rows) < args.min_abstain_ratio_per_language:
+            synthetic = _make_synthetic_negative(
+                sample_id=f"public-{counter:07d}",
+                language=language,
+                source="synthetic-negative:public-topup",
+                probe_idx=probe_idx,
+            )
+            rows.append(synthetic)
+            lang_rows.append(synthetic)
+            counter += 1
+            probe_idx += 1
 
     with out_path.open("w", encoding="utf-8") as f:
         for row in rows:

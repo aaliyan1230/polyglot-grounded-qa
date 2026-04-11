@@ -97,3 +97,66 @@ def test_run_ablation_script_writes_expected_columns() -> None:
         "citation_count",
     }
     assert expected.issubset(set(df.columns))
+
+
+def test_analyze_sft_dataset_script_writes_contract_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "python",
+            "scripts/analyze_sft_dataset.py",
+            "--input",
+            "data/benchmarks/finetune/sft_dataset_merged.jsonl",
+        ],
+        cwd=root,
+        check=True,
+    )
+
+    report_path = root / "artifacts" / "tables" / "sft_dataset_quality_report.md"
+    by_language_path = root / "artifacts" / "tables" / "sft_dataset_quality_by_language.parquet"
+    by_split_path = root / "artifacts" / "tables" / "sft_dataset_quality_by_split.parquet"
+
+    assert report_path.exists()
+    assert by_language_path.exists()
+    assert by_split_path.exists()
+
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "## Contract checks" in report_text
+    assert "## By split" in report_text
+
+    by_language_df = pl.read_parquet(by_language_path)
+    assert {"language", "rows", "abstain_rate", "citation_validity_rate"}.issubset(
+        set(by_language_df.columns)
+    )
+
+
+def test_run_finetune_eval_script_writes_diagnostics_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(
+        ["uv", "run", "python", "scripts/run_finetune_eval.py", "--variant", "baseline-pipeline"],
+        cwd=root,
+        check=True,
+    )
+
+    summary_path = root / "artifacts" / "tables" / "finetune_eval_summary.parquet"
+    by_language_path = root / "artifacts" / "tables" / "finetune_eval_by_language.parquet"
+    by_label_type_path = root / "artifacts" / "tables" / "finetune_eval_by_label_type.parquet"
+    report_path = root / "artifacts" / "tables" / "finetune_eval_diagnostics.md"
+
+    assert summary_path.exists()
+    assert by_language_path.exists()
+    assert by_label_type_path.exists()
+    assert report_path.exists()
+
+    summary_df = pl.read_parquet(summary_path)
+    assert {
+        "variant",
+        "abstain_accuracy",
+        "abstain_precision",
+        "abstain_recall",
+        "false_abstain_rate",
+        "missed_abstain_rate",
+        "grounded_trust_score",
+    }.issubset(set(summary_df.columns))

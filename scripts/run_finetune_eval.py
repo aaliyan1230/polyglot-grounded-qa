@@ -11,7 +11,6 @@ import polars as pl
 
 from polyglot_grounded_qa import create_default_pipeline
 
-
 PROMOTION_GATE = {
     "delta_avg_citation_precision_min": 0.0,
     "delta_avg_citation_recall_min": 0.0,
@@ -19,6 +18,115 @@ PROMOTION_GATE = {
     "delta_avg_answer_token_f1_min": 0.0,
     "delta_abstain_accuracy_min": 0.0,
 }
+
+
+def _safe_rate(numerator: int, denominator: int, empty_value: float) -> float:
+    if denominator == 0:
+        return empty_value
+    return numerator / denominator
+
+
+def _summarize_metric_rows(
+    rows: list[dict[str, Any]],
+    variant: str,
+    timestamp_utc: str,
+    language: str | None = None,
+    label_type: str | None = None,
+) -> dict[str, Any]:
+    count = len(rows)
+    pred_abstain = sum(1 for row in rows if bool(row["pred_abstained"]))
+    gold_abstain = sum(1 for row in rows if bool(row["gold_abstained"]))
+    true_positive_abstain = sum(
+        1 for row in rows if bool(row["pred_abstained"]) and bool(row["gold_abstained"])
+    )
+    false_positive_abstain = sum(
+        1 for row in rows if bool(row["pred_abstained"]) and not bool(row["gold_abstained"])
+    )
+    false_negative_abstain = sum(
+        1 for row in rows if (not bool(row["pred_abstained"])) and bool(row["gold_abstained"])
+    )
+    answerable_rows = count - gold_abstain
+
+    abstain_accuracy = sum(1 for row in rows if bool(row["abstain_match"])) / max(count, 1)
+    avg_citation_precision = sum(float(row["citation_precision"]) for row in rows) / max(count, 1)
+    avg_citation_recall = sum(float(row["citation_recall"]) for row in rows) / max(count, 1)
+    avg_answer_token_f1 = sum(float(row["answer_token_f1"]) for row in rows) / max(count, 1)
+    abstain_precision = _safe_rate(
+        true_positive_abstain,
+        pred_abstain,
+        1.0 if gold_abstain == 0 else 0.0,
+    )
+    abstain_recall = _safe_rate(
+        true_positive_abstain,
+        gold_abstain,
+        1.0 if pred_abstain == 0 else 0.0,
+    )
+    false_abstain_rate = _safe_rate(false_positive_abstain, answerable_rows, 0.0)
+    missed_abstain_rate = _safe_rate(false_negative_abstain, gold_abstain, 0.0)
+
+    summary = {
+        "variant": variant,
+        "timestamp_utc": timestamp_utc,
+        "rows": count,
+        "answerable_rows": answerable_rows,
+        "abstention_rows": gold_abstain,
+        "abstain_accuracy": abstain_accuracy,
+        "abstain_precision": abstain_precision,
+        "abstain_recall": abstain_recall,
+        "false_abstain_rate": false_abstain_rate,
+        "missed_abstain_rate": missed_abstain_rate,
+        "avg_citation_precision": avg_citation_precision,
+        "avg_citation_recall": avg_citation_recall,
+        "avg_answer_token_f1": avg_answer_token_f1,
+    }
+    summary["grounded_trust_score"] = (
+        0.2 * summary["abstain_accuracy"]
+        + 0.3 * summary["avg_citation_precision"]
+        + 0.3 * summary["avg_citation_recall"]
+        + 0.2 * summary["avg_answer_token_f1"]
+    )
+    if language is not None:
+        summary["language"] = language
+    if label_type is not None:
+        summary["label_type"] = label_type
+    return summary
+
+
+def _to_markdown_table(df: pl.DataFrame) -> str:
+    headers = df.columns
+    rows = df.rows()
+    lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
+    for row in rows:
+        lines.append("| " + " | ".join(str(value) for value in row) + " |")
+    return "\n".join(lines)
+
+
+def _write_diagnostics_report(
+    report_path: Path,
+    variant: str,
+    summary_df: pl.DataFrame,
+    by_language_df: pl.DataFrame,
+    by_label_type_df: pl.DataFrame,
+) -> None:
+    lines = [
+        "# Finetune Evaluation Diagnostics",
+        "",
+        f"Variant: `{variant}`",
+        "",
+        "## Summary",
+        "",
+        _to_markdown_table(summary_df),
+        "",
+        "## By language",
+        "",
+        _to_markdown_table(by_language_df),
+        "",
+        "## By label type",
+        "",
+        _to_markdown_table(by_label_type_df),
+        "",
+    ]
+    report_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -290,6 +398,16 @@ def main() -> None:
         default=Path("artifacts/tables/finetune_eval_by_language.parquet"),
     )
     parser.add_argument(
+        "--by-label-type-output",
+        type=Path,
+        default=Path("artifacts/tables/finetune_eval_by_label_type.parquet"),
+    )
+    parser.add_argument(
+        "--report-output",
+        type=Path,
+        default=Path("artifacts/tables/finetune_eval_diagnostics.md"),
+    )
+    parser.add_argument(
         "--append",
         action="store_true",
         help="Append rows to existing parquet outputs instead of overwriting.",
@@ -347,78 +465,56 @@ def main() -> None:
 
     rows_df = pl.DataFrame(row_metrics)
 
-    summary_df = rows_df.select(
-        pl.lit(args.variant).alias("variant"),
-        pl.lit(timestamp_utc).alias("timestamp_utc"),
-        pl.len().alias("rows"),
-        pl.col("abstain_match").mean().alias("abstain_accuracy"),
-        pl.col("citation_precision").mean().alias("avg_citation_precision"),
-        pl.col("citation_recall").mean().alias("avg_citation_recall"),
-        pl.col("answer_token_f1").mean().alias("avg_answer_token_f1"),
-    ).with_columns(
-        (
-            0.2 * pl.col("abstain_accuracy")
-            + 0.3 * pl.col("avg_citation_precision")
-            + 0.3 * pl.col("avg_citation_recall")
-            + 0.2 * pl.col("avg_answer_token_f1")
-        ).alias("grounded_trust_score")
-    )
+    summary_df = pl.DataFrame([_summarize_metric_rows(row_metrics, args.variant, timestamp_utc)])
 
-    by_language_df = (
-        rows_df.group_by("language")
-        .agg(
-            pl.len().alias("rows"),
-            pl.col("abstain_match").mean().alias("abstain_accuracy"),
-            pl.col("citation_precision").mean().alias("avg_citation_precision"),
-            pl.col("citation_recall").mean().alias("avg_citation_recall"),
-            pl.col("answer_token_f1").mean().alias("avg_answer_token_f1"),
+    by_language_rows = []
+    for language in sorted({str(row["language"]) for row in row_metrics}):
+        language_rows = [row for row in row_metrics if str(row["language"]) == language]
+        by_language_rows.append(
+            _summarize_metric_rows(language_rows, args.variant, timestamp_utc, language=language)
         )
-        .with_columns(
-            (
-                0.2 * pl.col("abstain_accuracy")
-                + 0.3 * pl.col("avg_citation_precision")
-                + 0.3 * pl.col("avg_citation_recall")
-                + 0.2 * pl.col("avg_answer_token_f1")
-            ).alias("grounded_trust_score")
+    by_language_df = pl.DataFrame(by_language_rows).sort("language")
+
+    by_label_type_rows = []
+    for label_type in sorted({str(row["label_type"]) for row in row_metrics}):
+        label_rows = [row for row in row_metrics if str(row["label_type"]) == label_type]
+        by_label_type_rows.append(
+            _summarize_metric_rows(label_rows, args.variant, timestamp_utc, label_type=label_type)
         )
-        .with_columns(pl.lit(args.variant).alias("variant"), pl.lit(timestamp_utc).alias("timestamp_utc"))
-        .select(
-            "variant",
-            "timestamp_utc",
-            "language",
-            "rows",
-            "abstain_accuracy",
-            "avg_citation_precision",
-            "avg_citation_recall",
-            "avg_answer_token_f1",
-            "grounded_trust_score",
-        )
-        .sort("language")
-    )
+    by_label_type_df = pl.DataFrame(by_label_type_rows).sort("label_type")
 
     rows_output = project_root / args.rows_output
     summary_output = project_root / args.summary_output
     by_language_output = project_root / args.by_language_output
+    by_label_type_output = project_root / args.by_label_type_output
+    report_output = project_root / args.report_output
 
     rows_output.parent.mkdir(parents=True, exist_ok=True)
     summary_output.parent.mkdir(parents=True, exist_ok=True)
     by_language_output.parent.mkdir(parents=True, exist_ok=True)
+    by_label_type_output.parent.mkdir(parents=True, exist_ok=True)
+    report_output.parent.mkdir(parents=True, exist_ok=True)
 
     if args.append:
         _append_or_write(rows_output, rows_df)
         _append_or_write(summary_output, summary_df)
         _append_or_write(by_language_output, by_language_df)
+        _append_or_write(by_label_type_output, by_label_type_df)
     else:
         rows_df.write_parquet(rows_output)
         summary_df.write_parquet(summary_output)
         by_language_df.write_parquet(by_language_output)
+        by_label_type_df.write_parquet(by_label_type_output)
 
     _build_variant_leaderboard(summary_output, summary_output.parent)
+    _write_diagnostics_report(report_output, args.variant, summary_df, by_language_df, by_label_type_df)
 
     print(f"Wrote row metrics: {rows_output}")
     print(f"Wrote summary: {summary_output}")
     print(f"Wrote by-language summary: {by_language_output}")
+    print(f"Wrote by-label-type summary: {by_label_type_output}")
     print(f"Wrote variant leaderboard: {summary_output.parent / 'finetune_variant_leaderboard.parquet'}")
+    print(f"Wrote diagnostics report: {report_output}")
     print(summary_df)
 
 

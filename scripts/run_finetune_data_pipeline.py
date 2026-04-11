@@ -43,6 +43,18 @@ def main() -> None:
         default=20,
         help="Public synthetic abstention examples per language.",
     )
+    parser.add_argument(
+        "--min-abstain-ratio",
+        type=float,
+        default=0.2,
+        help="Minimum abstention ratio enforced in public ingest, splits, and audit checks.",
+    )
+    parser.add_argument(
+        "--min-language-rows",
+        type=int,
+        default=40,
+        help="Minimum expected rows per language in the audit report.",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
@@ -61,6 +73,8 @@ def main() -> None:
                     str(args.max_per_language),
                     "--synthetic-negatives-per-language",
                     str(args.synthetic_negatives_per_language),
+                    "--min-abstain-ratio-per-language",
+                    str(args.min_abstain_ratio),
                 ],
                 cwd=root,
             )
@@ -77,6 +91,8 @@ def main() -> None:
             "scripts/split_sft_dataset.py",
             "--input",
             "data/benchmarks/finetune/sft_dataset_merged.jsonl",
+            "--min-abstain-ratio",
+            str(args.min_abstain_ratio),
         ],
         cwd=root,
     )
@@ -87,6 +103,10 @@ def main() -> None:
             "scripts/analyze_sft_dataset.py",
             "--input",
             "data/benchmarks/finetune/sft_dataset_merged.jsonl",
+            "--min-abstain-ratio",
+            str(args.min_abstain_ratio),
+            "--min-language-rows",
+            str(args.min_language_rows),
         ],
         cwd=root,
     )
