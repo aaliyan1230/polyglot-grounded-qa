@@ -14,7 +14,7 @@ def _run(cmd: list[str], cwd: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate + normalize + evaluate a trained adapter in one command."
+        description="Generate + normalize + evaluate a prompted base model or trained adapter in one command."
     )
     parser.add_argument(
         "--variant",
@@ -32,7 +32,12 @@ def main() -> None:
         "--adapter-path",
         type=Path,
         default=None,
-        help="Path to saved adapter directory.",
+        help="Path to saved adapter directory. Omit when running --no-adapter.",
+    )
+    parser.add_argument(
+        "--no-adapter",
+        action="store_true",
+        help="Evaluate the base model with the same prompt/test set but without loading a LoRA adapter.",
     )
     parser.add_argument(
         "--test-file",
@@ -85,42 +90,44 @@ def main() -> None:
     if args.temperature is not None:
         temperature = args.temperature
 
-    if not adapter_path:
+    if args.no_adapter:
+        adapter_path = ""
+
+    if not args.no_adapter and not adapter_path:
         raise ValueError(
             "Adapter path is empty. Set models.finetune.adapter_path in configs/models/default.yaml "
-            "or pass --adapter-path."
+            "or pass --adapter-path, or use --no-adapter to evaluate the base model only."
         )
 
-    adapter_abs = root / adapter_path
-    if not adapter_abs.exists():
+    adapter_abs = root / adapter_path if adapter_path else None
+    if adapter_abs is not None and not adapter_abs.exists():
         raise FileNotFoundError(
             f"Adapter path does not exist: {adapter_abs}\n"
             "Train first, then place adapter files there (or pass --adapter-path)."
         )
 
-    _run(
-        [
-            "uv",
-            "run",
-            "python",
-            "scripts/generate_tuned_predictions.py",
-            "--mode",
-            "hf-adapter",
-            "--test-file",
-            str(args.test_file),
-            "--base-model",
-            base_model,
-            "--adapter-path",
-            adapter_path,
-            "--output",
-            str(args.raw_output),
-            "--max-new-tokens",
-            str(max_new_tokens),
-            "--temperature",
-            str(temperature),
-        ],
-        cwd=root,
-    )
+    generate_cmd = [
+        "uv",
+        "run",
+        "python",
+        "scripts/generate_tuned_predictions.py",
+        "--mode",
+        "hf-adapter",
+        "--test-file",
+        str(args.test_file),
+        "--base-model",
+        base_model,
+        "--output",
+        str(args.raw_output),
+        "--max-new-tokens",
+        str(max_new_tokens),
+        "--temperature",
+        str(temperature),
+    ]
+    if adapter_path:
+        generate_cmd.extend(["--adapter-path", adapter_path])
+
+    _run(generate_cmd, cwd=root)
 
     _run(
         [
