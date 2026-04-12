@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from polyglot_grounded_qa.core.config_loader import load_app_config
 
 
 def _run(cmd: list[str], cwd: Path) -> None:
     print("Running:", " ".join(cmd))
-    subprocess.run(cmd, cwd=cwd, check=True)
+    env = os.environ.copy()
+    src_path = str(cwd / "src")
+    env["PYTHONPATH"] = src_path + os.pathsep + env.get("PYTHONPATH", "")
+    subprocess.run(cmd, cwd=cwd, env=env, check=True)
 
 
 def main() -> None:
@@ -72,7 +82,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    root = Path(__file__).resolve().parents[1]
+    root = ROOT
     cfg = load_app_config(project_root=root)
     models_cfg = cfg.models if isinstance(cfg.models, dict) else {}
     finetune_cfg = models_cfg.get("finetune", {}) if isinstance(models_cfg, dict) else {}
@@ -106,10 +116,10 @@ def main() -> None:
             "Train first, then place adapter files there (or pass --adapter-path)."
         )
 
+    python_cmd = sys.executable
+
     generate_cmd = [
-        "uv",
-        "run",
-        "python",
+        python_cmd,
         "scripts/generate_tuned_predictions.py",
         "--mode",
         "hf-adapter",
@@ -131,9 +141,7 @@ def main() -> None:
 
     _run(
         [
-            "uv",
-            "run",
-            "python",
+            python_cmd,
             "scripts/normalize_tuned_predictions.py",
             "--input",
             str(args.raw_output),
@@ -144,9 +152,7 @@ def main() -> None:
     )
 
     eval_cmd = [
-        "uv",
-        "run",
-        "python",
+        python_cmd,
         "scripts/run_finetune_eval.py",
         "--variant",
         args.variant,
