@@ -25,7 +25,13 @@ data/corpora/*
 data/benchmarks/*
 !data/corpora/.gitkeep
 !data/benchmarks/.gitkeep
+!data/benchmarks/finetune/
+!data/benchmarks/finetune/MANIFEST.md
+!data/benchmarks/finetune/*.jsonl
+!data/benchmarks/finetune/formatted/
+!data/benchmarks/finetune/formatted/*.jsonl
 
 .env
 docs
 kaggle_artifacts/
+further-plan.md
