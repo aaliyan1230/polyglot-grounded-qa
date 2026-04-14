@@ -2,6 +2,7 @@ default_language: base
 run_name: local-notebook-run
 retrieval:
   mode: text
+  hybrid_policy: naive
   backend: faiss_bm25
   top_k_dense: 25
   top_k_sparse: 25
@@ -14,4 +15,5 @@ retrieval:
   graph_weight: 0.35
   graph_max_hops: 2
   graph_min_path_score: 0.35
+  graph_min_quality_score: 0.45
   entity_link_min_score: 0.2

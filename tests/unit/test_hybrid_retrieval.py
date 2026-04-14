@@ -74,3 +74,68 @@ def test_hybrid_retriever_fuses_text_and_graph_results() -> None:
     evidence_types = {chunk.metadata.get("evidence_type") for chunk in chunks}
     assert "text" in evidence_types
     assert "graph" in evidence_types
+
+
+def test_filtered_hybrid_retriever_adds_quality_scores() -> None:
+    cfg = RetrievalConfig.model_validate(
+        {
+            "mode": "hybrid",
+            "hybrid_policy": "filtered",
+            "top_k_dense": 3,
+            "top_k_sparse": 3,
+            "top_k_rerank": 3,
+            "graph_top_k": 3,
+            "graph_min_quality_score": 0.3,
+        }
+    )
+    retriever = HybridRetriever(
+        text_retriever=BaselineRetriever(corpus=get_seed_corpus()),
+        graph_retriever=SeedKnowledgeGraphRetriever(
+            paths=get_seed_graph_paths(),
+            min_path_score=0.35,
+            entity_link_min_score=0.2,
+        ),
+        retrieval_cfg=cfg,
+    )
+
+    chunks = retriever.retrieve(
+        query="What is grounded QA?",
+        language="base",
+        k=5,
+    )
+
+    graph_chunks = [chunk for chunk in chunks if chunk.metadata.get("evidence_type") == "graph"]
+    assert graph_chunks
+    assert all(float(chunk.metadata.get("graph_quality_score", 0.0)) >= 0.3 for chunk in graph_chunks)
+
+
+def test_routed_hybrid_retriever_marks_graph_first_queries() -> None:
+    cfg = RetrievalConfig.model_validate(
+        {
+            "mode": "hybrid",
+            "hybrid_policy": "routed",
+            "top_k_dense": 3,
+            "top_k_sparse": 3,
+            "top_k_rerank": 3,
+            "graph_top_k": 3,
+        }
+    )
+    retriever = HybridRetriever(
+        text_retriever=BaselineRetriever(corpus=get_seed_corpus()),
+        graph_retriever=SeedKnowledgeGraphRetriever(
+            paths=get_seed_graph_paths(),
+            min_path_score=0.35,
+            entity_link_min_score=0.2,
+        ),
+        retrieval_cfg=cfg,
+    )
+
+    chunks = retriever.retrieve(
+        query="What is grounded QA?",
+        language="base",
+        k=5,
+    )
+
+    assert chunks
+    assert chunks[0].metadata.get("hybrid_policy") == "routed"
+    assert chunks[0].metadata.get("routing_decision") == "graph-first"

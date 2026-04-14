@@ -29,8 +29,13 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
     text_evidence_count = 0
     graph_evidence_count = 0
     graph_support_score = 0.0
+    graph_quality_score = 0.0
+    hybrid_policy = "naive"
+    routing_decision = "static"
 
     for chunk in chunks:
+        hybrid_policy = str(chunk.metadata.get("hybrid_policy", hybrid_policy))
+        routing_decision = str(chunk.metadata.get("routing_decision", routing_decision))
         evidence_type = chunk.metadata.get("evidence_type", "text")
         if evidence_type == "graph":
             graph_evidence_count += 1
@@ -38,14 +43,21 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
                 graph_support_score,
                 float(chunk.metadata.get("graph_path_score", chunk.score)),
             )
+            graph_quality_score = max(
+                graph_quality_score,
+                float(chunk.metadata.get("graph_quality_score", 0.0)),
+            )
             continue
         text_evidence_count += 1
 
     return {
         "retrieval_mode": retrieval_mode,
+        "hybrid_policy": hybrid_policy,
+        "routing_decision": routing_decision,
         "text_evidence_count": text_evidence_count,
         "graph_evidence_count": graph_evidence_count,
         "graph_support_score": round(graph_support_score, 4),
+        "graph_quality_score": round(graph_quality_score, 4),
     }
 
 
@@ -197,14 +209,113 @@ class HybridRetriever:
     graph_retriever: SeedKnowledgeGraphRetriever
     retrieval_cfg: RetrievalConfig
 
+    def _graph_quality_score(self, chunk: RetrievedChunk) -> float:
+        link_score = float(chunk.metadata.get("graph_link_score", 0.0))
+        path_score = min(float(chunk.metadata.get("graph_path_score", chunk.score)) / 1.5, 1.0)
+        path_length = int(chunk.metadata.get("path_length", 1))
+        source = str(chunk.metadata.get("source", "seed"))
+        source_score = 1.0 if source == "wikidata" else 0.85
+        length_score = max(0.5, 1.0 - (0.15 * max(path_length - 1, 0)))
+        return round(
+            (0.45 * link_score) + (0.3 * path_score) + (0.15 * source_score) + (0.1 * length_score),
+            4,
+        )
+
+    def _apply_graph_policy(self, graph_chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+        enriched: list[RetrievedChunk] = []
+        for chunk in graph_chunks:
+            quality_score = self._graph_quality_score(chunk)
+            enriched.append(
+                chunk.model_copy(
+                    update={
+                        "metadata": {
+                            **chunk.metadata,
+                            "graph_quality_score": quality_score,
+                        }
+                    }
+                )
+            )
+
+        if self.retrieval_cfg.hybrid_policy == "filtered":
+            filtered = [
+                chunk
+                for chunk in enriched
+                if float(chunk.metadata.get("graph_quality_score", 0.0))
+                >= self.retrieval_cfg.graph_min_quality_score
+            ]
+            return filtered
+
+        if self.retrieval_cfg.hybrid_policy == "routed":
+            filtered = [
+                chunk
+                for chunk in enriched
+                if float(chunk.metadata.get("graph_quality_score", 0.0))
+                >= self.retrieval_cfg.graph_min_quality_score
+            ]
+            return filtered or enriched[:1]
+
+        return enriched
+
+    def _route_query(self, query: str) -> str:
+        normalized_query = query.strip().lower()
+        tokens = _tokenize(normalized_query)
+        graph_first_prefixes = (
+            "what is",
+            "who is",
+            "when is",
+            "where is",
+            "que es",
+            "qu est",
+            "nedir",
+        )
+        text_first_markers = (
+            "why",
+            "how",
+            "explain",
+            "compare",
+            "por que",
+            "comment",
+            "neden",
+            "nasil",
+        )
+
+        if any(normalized_query.startswith(prefix) for prefix in graph_first_prefixes) and len(tokens) <= 8:
+            return "graph-first"
+        if any(marker in normalized_query for marker in text_first_markers):
+            return "text-first"
+        if len(tokens) <= 6:
+            return "graph-first"
+        return "balanced"
+
+    def _annotate_chunks(
+        self, chunks: list[RetrievedChunk], routing_decision: str
+    ) -> list[RetrievedChunk]:
+        return [
+            chunk.model_copy(
+                update={
+                    "metadata": {
+                        **chunk.metadata,
+                        "hybrid_policy": self.retrieval_cfg.hybrid_policy,
+                        "routing_decision": routing_decision,
+                    }
+                }
+            )
+            for chunk in chunks
+        ]
+
     def _fuse_ranked_lists(
-        self, text_chunks: list[RetrievedChunk], graph_chunks: list[RetrievedChunk], k: int
+        self,
+        text_chunks: list[RetrievedChunk],
+        graph_chunks: list[RetrievedChunk],
+        k: int,
+        graph_weight: float,
+        text_weight: float,
     ) -> list[RetrievedChunk]:
         weighted_scores: dict[tuple[str, str], tuple[float, RetrievedChunk]] = {}
 
         for weight, chunks in (
-            (self.retrieval_cfg.text_weight, text_chunks),
-            (self.retrieval_cfg.graph_weight, graph_chunks),
+            (text_weight, text_chunks),
+            (graph_weight, graph_chunks),
         ):
             for rank, chunk in enumerate(chunks, start=1):
                 fused_score = chunk.score + (weight / (60 + rank))
@@ -219,11 +330,13 @@ class HybridRetriever:
 
     def retrieve(self, query: str, language: str, k: int) -> list[RetrievedChunk]:
         if self.retrieval_cfg.mode == "graph":
-            return self.graph_retriever.retrieve(
+            graph_chunks = self.graph_retriever.retrieve(
                 query=query,
                 language=language,
                 k=min(k, self.retrieval_cfg.graph_top_k),
             )
+            graph_chunks = self._apply_graph_policy(graph_chunks)
+            return self._annotate_chunks(graph_chunks, routing_decision="graph-only")
 
         text_chunks = self.text_retriever.retrieve(
             query=query,
@@ -231,11 +344,32 @@ class HybridRetriever:
             k=min(k, self.retrieval_cfg.top_k_dense),
         )
         if self.retrieval_cfg.mode == "text":
-            return text_chunks
+            return self._annotate_chunks(text_chunks, routing_decision="text-only")
 
         graph_chunks = self.graph_retriever.retrieve(
             query=query,
             language=language,
             k=min(k, self.retrieval_cfg.graph_top_k),
         )
-        return self._fuse_ranked_lists(text_chunks=text_chunks, graph_chunks=graph_chunks, k=k)
+        graph_chunks = self._apply_graph_policy(graph_chunks)
+
+        routing_decision = "balanced"
+        text_weight = self.retrieval_cfg.text_weight
+        graph_weight = self.retrieval_cfg.graph_weight
+        if self.retrieval_cfg.hybrid_policy == "routed":
+            routing_decision = self._route_query(query)
+            if routing_decision == "graph-first":
+                graph_weight = 0.6
+                text_weight = 0.4
+            elif routing_decision == "text-first":
+                graph_weight = 0.2
+                text_weight = 0.8
+
+        fused = self._fuse_ranked_lists(
+            text_chunks=text_chunks,
+            graph_chunks=graph_chunks,
+            k=k,
+            graph_weight=graph_weight,
+            text_weight=text_weight,
+        )
+        return self._annotate_chunks(fused, routing_decision=routing_decision)

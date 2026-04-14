@@ -41,7 +41,9 @@ def _select_generator(models_cfg: dict[str, Any]) -> BaselineGenerator | Adapter
 
 
 def create_default_pipeline(
-    project_root: str, retrieval_mode: str | None = None
+    project_root: str,
+    retrieval_mode: str | None = None,
+    hybrid_policy: str | None = None,
 ) -> GroundedQAPipeline:
     cfg = load_app_config(project_root=Path(project_root))
     default_language = cfg.languages[cfg.pipeline.default_language]
@@ -51,8 +53,15 @@ def create_default_pipeline(
     requested_mode = retrieval_mode or os.getenv(
         "PGQA_RETRIEVAL_MODE", cfg.pipeline.retrieval.mode
     )
+    requested_policy = hybrid_policy or os.getenv(
+        "PGQA_HYBRID_POLICY", cfg.pipeline.retrieval.hybrid_policy
+    )
     retrieval_cfg = RetrievalConfig.model_validate(
-        {**cfg.pipeline.retrieval.model_dump(), "mode": requested_mode}
+        {
+            **cfg.pipeline.retrieval.model_dump(),
+            "mode": requested_mode,
+            "hybrid_policy": requested_policy,
+        }
     )
     text_retriever = BaselineRetriever(corpus=seed_corpus)
     graph_retriever = SeedKnowledgeGraphRetriever(

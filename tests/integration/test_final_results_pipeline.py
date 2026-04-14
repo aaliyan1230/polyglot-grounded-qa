@@ -45,4 +45,6 @@ def test_materialize_final_results_and_contract_core() -> None:
         "kg_path_yield_rate",
         "supporting_path_rate",
         "high_leakage_rate",
+        "delta_hybrid_filtered_support_minus_hybrid",
+        "delta_hybrid_routed_support_minus_hybrid",
     }.issubset(set(hybrid_summary.columns))

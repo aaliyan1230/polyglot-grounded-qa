@@ -50,6 +50,8 @@ def test_run_eval_script_writes_expected_columns() -> None:
         "abstained",
         "citation_count",
         "retrieval_mode",
+        "hybrid_policy",
+        "routing_decision",
         "text_evidence_count",
         "graph_evidence_count",
     }
@@ -76,6 +78,8 @@ def test_run_eval_script_is_reproducible_on_key_outputs() -> None:
         "abstained",
         "citation_count",
         "retrieval_mode",
+        "hybrid_policy",
+        "routing_decision",
         "text_evidence_count",
         "graph_evidence_count",
     ]
@@ -102,10 +106,15 @@ def test_run_ablation_script_writes_expected_columns() -> None:
         "abstained",
         "citation_count",
         "retrieval_mode",
+        "hybrid_policy",
+        "routing_decision",
         "text_evidence_count",
         "graph_evidence_count",
     }
     assert expected.issubset(set(df.columns))
+    assert {"text-only", "kg-only", "hybrid", "hybrid-path-filtered", "hybrid-routed"}.issubset(
+        set(df.get_column("variant").to_list())
+    )
 
 
 def test_build_kg_cache_script_writes_seed_artifact() -> None:

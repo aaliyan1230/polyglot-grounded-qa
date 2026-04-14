@@ -34,6 +34,7 @@ class LanguageConfig(BaseModel):
 
 class RetrievalConfig(BaseModel):
     mode: Literal["text", "graph", "hybrid"] = "text"
+    hybrid_policy: Literal["naive", "filtered", "routed"] = "naive"
     backend: str = "faiss_bm25"
     top_k_dense: int = Field(default=30, ge=1)
     top_k_sparse: int = Field(default=30, ge=1)
@@ -46,6 +47,7 @@ class RetrievalConfig(BaseModel):
     graph_weight: float = Field(default=0.35, ge=0.0)
     graph_max_hops: int = Field(default=2, ge=1)
     graph_min_path_score: float = Field(default=0.35, ge=0.0, le=1.0)
+    graph_min_quality_score: float = Field(default=0.45, ge=0.0, le=1.0)
     entity_link_min_score: float = Field(default=0.2, ge=0.0, le=1.0)
 
     @model_validator(mode="after")

@@ -152,6 +152,8 @@ def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame
         "text-only": "text",
         "kg-only": "kg_only",
         "hybrid": "hybrid",
+        "hybrid-path-filtered": "hybrid_filtered",
+        "hybrid-routed": "hybrid_routed",
     }
     for variant_name, prefix in variant_frames.items():
         subset = ablation_summary[ablation_summary["variant"] == variant_name][
@@ -201,6 +203,22 @@ def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame
             summary["hybrid_avg_graph_evidence_count"].fillna(0.0)
             - summary["text_avg_graph_evidence_count"].fillna(0.0)
         )
+    if (
+        "hybrid_filtered_avg_graph_support_score" in summary.columns
+        and "hybrid_avg_graph_support_score" in summary.columns
+    ):
+        summary["delta_hybrid_filtered_support_minus_hybrid"] = (
+            summary["hybrid_filtered_avg_graph_support_score"].fillna(0.0)
+            - summary["hybrid_avg_graph_support_score"].fillna(0.0)
+        )
+    if (
+        "hybrid_routed_avg_graph_support_score" in summary.columns
+        and "hybrid_avg_graph_support_score" in summary.columns
+    ):
+        summary["delta_hybrid_routed_support_minus_hybrid"] = (
+            summary["hybrid_routed_avg_graph_support_score"].fillna(0.0)
+            - summary["hybrid_avg_graph_support_score"].fillna(0.0)
+        )
 
     required_defaults = {
         "text_avg_graph_evidence_count": 0.0,
@@ -211,6 +229,8 @@ def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame
         "supporting_path_rate": 0.0,
         "high_leakage_rate": 0.0,
         "delta_hybrid_graph_support_score_minus_text": 0.0,
+        "delta_hybrid_filtered_support_minus_hybrid": 0.0,
+        "delta_hybrid_routed_support_minus_hybrid": 0.0,
     }
     for column, default in required_defaults.items():
         if column not in summary.columns:
@@ -245,6 +265,8 @@ def _write_hybrid_takeaways(output_dir: Path) -> None:
                 f"- Best KG coverage slice: **{best_yield['language']}** with path yield rate = {float(best_yield.get('kg_path_yield_rate', 0.0)):.4f}.",
                 f"- Strongest hybrid graph-support delta vs text-only: **{strongest['language']}** with $\\Delta$ support score = {float(strongest.get('delta_hybrid_graph_support_score_minus_text', 0.0)):.4f}.",
                 f"- Lowest current high-leakage rate: **{safest['language']}** at {float(safest.get('high_leakage_rate', 0.0)):.4f}.",
+                f"- Filtered-hybrid support delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_filtered_support_minus_hybrid', 0.0)):.4f}.",
+                f"- Routed-hybrid support delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_routed_support_minus_hybrid', 0.0)):.4f}.",
             ]
         )
 

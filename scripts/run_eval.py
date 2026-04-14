@@ -19,13 +19,23 @@ def main() -> None:
         default=None,
         help="Override retrieval mode for this evaluation run.",
     )
+    parser.add_argument(
+        "--hybrid-policy",
+        choices=["naive", "filtered", "routed"],
+        default=None,
+        help="Override the hybrid retrieval policy for this evaluation run.",
+    )
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
     cfg = load_app_config(project_root=project_root)
     language = cfg.pipeline.default_language
     metadata = build_run_metadata(cfg=cfg, language=language)
-    pipeline = create_default_pipeline(str(project_root), retrieval_mode=args.retrieval_mode)
+    pipeline = create_default_pipeline(
+        str(project_root),
+        retrieval_mode=args.retrieval_mode,
+        hybrid_policy=args.hybrid_policy,
+    )
 
     queries = [
         "What is language-pack architecture?",
@@ -42,9 +52,12 @@ def main() -> None:
                 "abstained": result.abstained,
                 "citation_count": len(result.citations),
                 "retrieval_mode": result.metadata.get("retrieval_mode", "text"),
+                "hybrid_policy": result.metadata.get("hybrid_policy", "naive"),
+                "routing_decision": result.metadata.get("routing_decision", "static"),
                 "text_evidence_count": result.metadata.get("text_evidence_count", 0),
                 "graph_evidence_count": result.metadata.get("graph_evidence_count", 0),
                 "graph_support_score": result.metadata.get("graph_support_score", 0.0),
+                "graph_quality_score": result.metadata.get("graph_quality_score", 0.0),
             }
         )
 
