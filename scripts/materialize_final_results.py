@@ -138,6 +138,21 @@ def _write_reader_takeaways(output_dir: Path) -> None:
                 ]
             )
 
+    abstention_summary_path = output_dir / "final_hybrid_abstention_summary.parquet"
+    if abstention_summary_path.exists():
+        abstention_summary = pd.read_parquet(abstention_summary_path)
+        if not abstention_summary.empty:
+            best_abstention = abstention_summary.sort_values("abstain_accuracy", ascending=False).iloc[0]
+            takeaway_lines.extend(
+                [
+                    "",
+                    "### Hybrid abstention snapshot",
+                    f"- Strongest abstention variant: **{best_abstention['variant']}** with abstain accuracy = {float(best_abstention.get('abstain_accuracy', 0.0)):.4f}.",
+                    f"- Abstain precision = {float(best_abstention.get('abstain_precision', 0.0)):.4f}, abstain recall = {float(best_abstention.get('abstain_recall', 0.0)):.4f}.",
+                    f"- Average graph support score for that variant = {float(best_abstention.get('avg_graph_support_score', 0.0)):.4f}.",
+                ]
+            )
+
     takeaway_text = "\n".join(takeaway_lines)
     out_path = output_dir / "final_reader_takeaways.md"
     out_path.write_text(takeaway_text + "\n", encoding="utf-8")
@@ -303,6 +318,17 @@ def _write_hybrid_takeaways(output_dir: Path) -> None:
     print(f"Wrote {out_path}")
 
 
+def _materialize_hybrid_abstention(output_dir: Path) -> None:
+    summary_path = output_dir / "hybrid_abstention_summary.parquet"
+    by_language_path = output_dir / "hybrid_abstention_by_language.parquet"
+    if summary_path.exists():
+        summary = pd.read_parquet(summary_path)
+        summary.to_parquet(output_dir / "final_hybrid_abstention_summary.parquet", index=False)
+    if by_language_path.exists():
+        by_language = pd.read_parquet(by_language_path)
+        by_language.to_parquet(output_dir / "final_hybrid_abstention_by_language.parquet", index=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Materialize final result tables from eval/ablation/finetune artifacts."
@@ -448,6 +474,7 @@ def main() -> None:
     pivot.to_parquet(output_dir / "final_ablation_deltas.parquet", index=False)
     diagnostics.to_parquet(output_dir / "final_repro_diagnostics.parquet", index=False)
     _materialize_hybrid_summary(output_dir=output_dir, ablation_summary=ablation_summary)
+    _materialize_hybrid_abstention(output_dir=output_dir)
 
     finetune_summary_path = output_dir / "finetune_eval_summary.parquet"
     finetune_by_language_path = output_dir / "finetune_eval_by_language.parquet"

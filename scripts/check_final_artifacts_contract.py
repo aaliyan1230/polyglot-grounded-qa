@@ -47,6 +47,16 @@ CORE_ARTIFACT_COLUMNS: dict[str, set[str]] = {
         "hybrid_routed_text_first_adherence_rate",
         "delta_hybrid_routed_graph_top_rate_minus_hybrid",
     },
+    "artifacts/tables/final_hybrid_abstention_summary.parquet": {
+        "variant",
+        "rows",
+        "abstain_accuracy",
+        "abstain_precision",
+        "abstain_recall",
+        "false_abstain_rate",
+        "missed_abstain_rate",
+        "avg_graph_support_score",
+    },
     "artifacts/tables/final_repro_diagnostics.parquet": {"metric", "value"},
 }
 

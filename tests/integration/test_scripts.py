@@ -222,6 +222,32 @@ def test_analyze_kg_path_quality_script_writes_contract_outputs() -> None:
     }.issubset(set(by_language_df.columns))
 
 
+def test_analyze_hybrid_abstention_script_writes_contract_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(["uv", "run", "python", "scripts/analyze_hybrid_abstention.py"], cwd=root, check=True)
+
+    summary_path = root / "artifacts" / "tables" / "hybrid_abstention_summary.parquet"
+    by_language_path = root / "artifacts" / "tables" / "hybrid_abstention_by_language.parquet"
+    report_path = root / "artifacts" / "tables" / "hybrid_abstention_report.md"
+
+    assert summary_path.exists()
+    assert by_language_path.exists()
+    assert report_path.exists()
+
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "## Overall" in report_text
+    assert "## By language" in report_text
+
+    summary_df = pl.read_parquet(summary_path)
+    assert {
+        "variant",
+        "abstain_accuracy",
+        "abstain_precision",
+        "abstain_recall",
+        "avg_graph_support_score",
+    }.issubset(set(summary_df.columns))
+
+
 def test_analyze_sft_dataset_script_writes_contract_outputs() -> None:
     root = Path(__file__).resolve().parents[2]
     subprocess.run(

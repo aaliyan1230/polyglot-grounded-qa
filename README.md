@@ -110,6 +110,7 @@ Most of the repo is intentionally local and notebook-friendly:
 - `scripts/train_unsloth_sft.py` and `scripts/run_trained_adapter_eval.py`: best run on Kaggle or Colab when adapter dependencies or GPU memory are a constraint.
 - `scripts/build_kg_cache.py` and `scripts/analyze_kg_coverage.py`: CPU-only and suitable for local runs.
 - `scripts/analyze_kg_path_quality.py`: CPU-only leakage and support-quality audit for hybrid KG paths.
+- `scripts/analyze_hybrid_abstention.py`: CPU-only benchmark-backed abstention comparison for text-only vs hybrid policies.
 
 `scripts/build_kg_cache.py` attempts a small Wikidata-backed cache build first and falls back to the repo's local seed paths when the network is unavailable.
 
@@ -167,6 +168,9 @@ uv run python scripts/analyze_kg_coverage.py
 
 # Audit graph path quality and leakage risk
 uv run python scripts/analyze_kg_path_quality.py
+
+# Compare text-only and graph-aware abstention policies on benchmark labels
+uv run python scripts/analyze_hybrid_abstention.py
 
 # Run evaluation
 uv run python scripts/run_eval.py
