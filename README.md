@@ -113,6 +113,12 @@ Most of the repo is intentionally local and notebook-friendly:
 
 `scripts/build_kg_cache.py` attempts a small Wikidata-backed cache build first and falls back to the repo's local seed paths when the network is unavailable.
 
+Hybrid retrieval now supports three heuristic policies without any GPU requirement:
+
+- `naive`: plain text-plus-graph fusion.
+- `filtered`: drops low-quality graph paths before fusion.
+- `routed`: shifts graph/text weight based on simple question-type routing.
+
 The default retrieval path is also local-first:
 
 - Primary backend: FAISS plus BM25.
@@ -148,6 +154,9 @@ uv run python scripts/build_kg_cache.py --offline --refresh
 
 # Run the baseline pipeline on one query
 uv run python scripts/run_pipeline.py "What is grounded QA?" --language base
+
+# Run the hybrid pipeline with heuristic routing
+uv run python scripts/run_pipeline.py "What is grounded QA?" --language base --retrieval-mode hybrid --hybrid-policy routed
 
 # Run a graph-coverage audit
 uv run python scripts/analyze_kg_coverage.py
