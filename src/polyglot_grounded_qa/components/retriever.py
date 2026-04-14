@@ -2,7 +2,62 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from polyglot_grounded_qa.schemas.contracts import RetrievedChunk
+from polyglot_grounded_qa.schemas.config import RetrievalConfig
+from polyglot_grounded_qa.schemas.contracts import KnowledgeGraphPath, RetrievedChunk
+
+
+def _tokenize(text: str) -> set[str]:
+    tokens: list[str] = []
+    current: list[str] = []
+    for char in text.lower():
+        if char.isalnum():
+            current.append(char)
+            continue
+        if current:
+            tokens.append("".join(current))
+            current = []
+    if current:
+        tokens.append("".join(current))
+    return set(tokens)
+
+
+def _supports_language(available_languages: list[str], language: str) -> bool:
+    return not available_languages or language in available_languages
+
+
+def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str) -> dict[str, int | float | str]:
+    text_evidence_count = 0
+    graph_evidence_count = 0
+    graph_support_score = 0.0
+
+    for chunk in chunks:
+        evidence_type = chunk.metadata.get("evidence_type", "text")
+        if evidence_type == "graph":
+            graph_evidence_count += 1
+            graph_support_score = max(
+                graph_support_score,
+                float(chunk.metadata.get("graph_path_score", chunk.score)),
+            )
+            continue
+        text_evidence_count += 1
+
+    return {
+        "retrieval_mode": retrieval_mode,
+        "text_evidence_count": text_evidence_count,
+        "graph_evidence_count": graph_evidence_count,
+        "graph_support_score": round(graph_support_score, 4),
+    }
+
+
+@dataclass(slots=True)
+class GraphQueryDiagnostics:
+    query: str
+    language: str
+    linked_entity_count: int
+    candidate_path_count: int
+    returned_path_count: int
+    max_path_score: float
+    failure_bucket: str
 
 
 @dataclass(slots=True)
@@ -12,12 +67,175 @@ class BaselineRetriever:
     corpus: list[RetrievedChunk]
 
     def retrieve(self, query: str, language: str, k: int) -> list[RetrievedChunk]:
-        _ = language
-        query_terms = set(query.lower().split())
+        query_terms = _tokenize(query)
         scored: list[tuple[float, RetrievedChunk]] = []
         for chunk in self.corpus:
-            overlap = len(query_terms.intersection(chunk.text.lower().split()))
+            languages = list(chunk.metadata.get("languages", []))
+            if not _supports_language(languages, language):
+                continue
+            overlap = len(query_terms.intersection(_tokenize(chunk.text)))
             score = float(overlap) + chunk.score
-            scored.append((score, chunk.model_copy(update={"score": score})))
+            metadata = {
+                **chunk.metadata,
+                "evidence_type": chunk.metadata.get("evidence_type", "text"),
+                "retrieval_language": language,
+            }
+            scored.append(
+                (
+                    score,
+                    chunk.model_copy(update={"score": score, "metadata": metadata}),
+                )
+            )
         scored.sort(key=lambda x: x[0], reverse=True)
         return [chunk for _, chunk in scored[:k]]
+
+
+@dataclass(slots=True)
+class SeedKnowledgeGraphRetriever:
+    paths: list[KnowledgeGraphPath]
+    min_path_score: float
+    entity_link_min_score: float
+
+    def _rank_paths(
+        self, query: str, language: str
+    ) -> list[tuple[float, float, int, KnowledgeGraphPath]]:
+        query_terms = _tokenize(query)
+        query_text = query.lower()
+        ranked: list[tuple[float, float, int, KnowledgeGraphPath]] = []
+
+        for path in self.paths:
+            if not _supports_language(path.languages, language):
+                continue
+
+            alias_hits = 0
+            alias_terms: set[str] = set()
+            for alias in path.metadata.get("aliases", []):
+                alias_text = str(alias).lower()
+                alias_terms.update(_tokenize(alias_text))
+                if alias_text and alias_text in query_text:
+                    alias_hits += 1
+
+            overlap = len(query_terms.intersection(alias_terms.union(_tokenize(path.render_text()))))
+            normalized_overlap = 0.0 if not query_terms else overlap / len(query_terms)
+            link_score = max(alias_hits * 0.35, normalized_overlap)
+            final_score = path.score + link_score
+            ranked.append((final_score, link_score, alias_hits, path))
+
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        return ranked
+
+    def analyze_query(self, query: str, language: str, k: int) -> GraphQueryDiagnostics:
+        ranked = self._rank_paths(query=query, language=language)
+        if not ranked:
+            return GraphQueryDiagnostics(
+                query=query,
+                language=language,
+                linked_entity_count=0,
+                candidate_path_count=0,
+                returned_path_count=0,
+                max_path_score=0.0,
+                failure_bucket="unsupported-language",
+            )
+
+        linked_entity_count = sum(1 for _, link_score, alias_hits, _ in ranked if alias_hits > 0 or link_score >= self.entity_link_min_score)
+        retrieved = [
+            item
+            for item in ranked
+            if item[0] >= self.min_path_score and item[1] >= self.entity_link_min_score
+        ][:k]
+        max_path_score = round(max(score for score, _, _, _ in ranked), 4)
+        max_link_score = max(link_score for _, link_score, _, _ in ranked)
+
+        if linked_entity_count == 0:
+            failure_bucket = "no-link"
+        elif not retrieved:
+            failure_bucket = "no-path"
+        elif max_link_score < self.entity_link_min_score:
+            failure_bucket = "low-confidence-link"
+        else:
+            failure_bucket = "supported"
+
+        return GraphQueryDiagnostics(
+            query=query,
+            language=language,
+            linked_entity_count=linked_entity_count,
+            candidate_path_count=len(ranked),
+            returned_path_count=len(retrieved),
+            max_path_score=max_path_score,
+            failure_bucket=failure_bucket,
+        )
+
+    def retrieve(self, query: str, language: str, k: int) -> list[RetrievedChunk]:
+        ranked = self._rank_paths(query=query, language=language)
+        retrieved: list[RetrievedChunk] = []
+        for score, link_score, alias_hits, path in ranked:
+            if score < self.min_path_score or link_score < self.entity_link_min_score:
+                continue
+            metadata = {
+                **path.metadata,
+                "evidence_type": "graph",
+                "languages": path.languages,
+                "graph_path_score": round(score, 4),
+                "graph_link_score": round(link_score, 4),
+                "linked_entity_hits": alias_hits,
+                "path_length": len(path.triples),
+                "retrieval_language": language,
+            }
+            retrieved.append(
+                path.to_retrieved_chunk(score=round(score, 4)).model_copy(
+                    update={"metadata": metadata}
+                )
+            )
+            if len(retrieved) >= k:
+                break
+        return retrieved
+
+
+@dataclass(slots=True)
+class HybridRetriever:
+    text_retriever: BaselineRetriever
+    graph_retriever: SeedKnowledgeGraphRetriever
+    retrieval_cfg: RetrievalConfig
+
+    def _fuse_ranked_lists(
+        self, text_chunks: list[RetrievedChunk], graph_chunks: list[RetrievedChunk], k: int
+    ) -> list[RetrievedChunk]:
+        weighted_scores: dict[tuple[str, str], tuple[float, RetrievedChunk]] = {}
+
+        for weight, chunks in (
+            (self.retrieval_cfg.text_weight, text_chunks),
+            (self.retrieval_cfg.graph_weight, graph_chunks),
+        ):
+            for rank, chunk in enumerate(chunks, start=1):
+                fused_score = chunk.score + (weight / (60 + rank))
+                key = (chunk.doc_id, chunk.chunk_id)
+                previous = weighted_scores.get(key)
+                updated_chunk = chunk.model_copy(update={"score": round(fused_score, 4)})
+                if previous is None or fused_score > previous[0]:
+                    weighted_scores[key] = (fused_score, updated_chunk)
+
+        ordered = sorted(weighted_scores.values(), key=lambda item: item[0], reverse=True)
+        return [chunk for _, chunk in ordered[:k]]
+
+    def retrieve(self, query: str, language: str, k: int) -> list[RetrievedChunk]:
+        if self.retrieval_cfg.mode == "graph":
+            return self.graph_retriever.retrieve(
+                query=query,
+                language=language,
+                k=min(k, self.retrieval_cfg.graph_top_k),
+            )
+
+        text_chunks = self.text_retriever.retrieve(
+            query=query,
+            language=language,
+            k=min(k, self.retrieval_cfg.top_k_dense),
+        )
+        if self.retrieval_cfg.mode == "text":
+            return text_chunks
+
+        graph_chunks = self.graph_retriever.retrieve(
+            query=query,
+            language=language,
+            k=min(k, self.retrieval_cfg.graph_top_k),
+        )
+        return self._fuse_ranked_lists(text_chunks=text_chunks, graph_chunks=graph_chunks, k=k)

@@ -15,16 +15,16 @@ def main() -> None:
     cfg = load_app_config(project_root=project_root)
     language = cfg.pipeline.default_language
     metadata = build_run_metadata(cfg=cfg, language=language)
-    pipeline = create_default_pipeline(str(project_root))
 
     settings = [
-        {"name": "baseline", "k": 10},
-        {"name": "no_rerank", "k": 1},
+        {"name": "text-only", "mode": "text"},
+        {"name": "kg-only", "mode": "graph"},
+        {"name": "hybrid", "mode": "hybrid"},
     ]
     rows: list[dict[str, object]] = []
     query = "How does locale inheritance work?"
     for setting in settings:
-        pipeline.top_k_rerank = int(setting["k"])
+        pipeline = create_default_pipeline(str(project_root), retrieval_mode=str(setting["mode"]))
         result = pipeline.run(query=query, language=language)
         rows.append(
             {
@@ -33,6 +33,10 @@ def main() -> None:
                 "answer": result.answer,
                 "abstained": result.abstained,
                 "citation_count": len(result.citations),
+                "retrieval_mode": result.metadata.get("retrieval_mode", "text"),
+                "text_evidence_count": result.metadata.get("text_evidence_count", 0),
+                "graph_evidence_count": result.metadata.get("graph_evidence_count", 0),
+                "graph_support_score": result.metadata.get("graph_support_score", 0.0),
             }
         )
 

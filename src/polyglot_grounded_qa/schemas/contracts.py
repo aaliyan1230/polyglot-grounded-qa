@@ -19,6 +19,41 @@ class Claim(BaseModel):
     confidence: float | None = None
 
 
+class KnowledgeGraphTriple(BaseModel):
+    subject: str = Field(min_length=1)
+    relation: str = Field(min_length=1)
+    object: str = Field(min_length=1)
+
+
+class KnowledgeGraphPath(BaseModel):
+    path_id: str = Field(min_length=1)
+    triples: list[KnowledgeGraphTriple] = Field(min_length=1)
+    score: float = Field(ge=0.0)
+    languages: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def render_text(self) -> str:
+        return " | ".join(
+            f"{triple.subject} {triple.relation} {triple.object}" for triple in self.triples
+        )
+
+    def to_retrieved_chunk(self, score: float | None = None) -> RetrievedChunk:
+        chunk_score = self.score if score is None else score
+        return RetrievedChunk(
+            doc_id=f"kg::{self.path_id}",
+            chunk_id=self.path_id,
+            text=self.render_text(),
+            score=chunk_score,
+            metadata={
+                **self.metadata,
+                "evidence_type": "graph",
+                "languages": self.languages,
+                "graph_path_score": chunk_score,
+                "path_length": len(self.triples),
+            },
+        )
+
+
 class GroundedAnswer(BaseModel):
     answer: str = Field(min_length=1)
     citations: list[Citation] = Field(default_factory=list)
