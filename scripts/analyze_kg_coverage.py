@@ -23,6 +23,12 @@ COVERAGE_QUERIES: dict[str, list[str]] = {
         "Como funciona la herencia de locale?",
         "Como ayuda la recuperacion hibrida?",
     ],
+    "es-MX": [
+        "Que es grounded QA en espanol de Mexico?",
+        "Por que se requieren citas en grounded QA?",
+        "Como funciona la herencia de locale?",
+        "Como ayuda la recuperacion hibrida?",
+    ],
     "fr": [
         "Qu est ce que le grounded QA?",
         "Pourquoi les citations sont elles requises?",
@@ -70,7 +76,7 @@ def _render_report(
         "",
         "## Interpretation",
         "",
-        "This report is a CPU-only coverage audit for the seed KG cache. No Kaggle GPU is required for this step.",
+        "This report is a CPU-only coverage audit for the local KG cache, including public Wikidata-backed paths when available. No Kaggle GPU is required for this step.",
     ]
     report_path.write_text("\n".join(lines), encoding="utf-8")
 

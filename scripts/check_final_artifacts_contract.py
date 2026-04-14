@@ -42,6 +42,7 @@ CORE_ARTIFACT_COLUMNS: dict[str, set[str]] = {
         "kg_path_yield_rate",
         "supporting_path_rate",
         "high_leakage_rate",
+        "hybrid_filtered_graph_filter_fallback_rate",
         "hybrid_routed_graph_first_adherence_rate",
         "hybrid_routed_text_first_adherence_rate",
         "delta_hybrid_routed_graph_top_rate_minus_hybrid",

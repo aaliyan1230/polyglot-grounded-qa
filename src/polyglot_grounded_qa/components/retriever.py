@@ -21,8 +21,27 @@ def _tokenize(text: str) -> set[str]:
     return set(tokens)
 
 
+def _language_candidates(language: str) -> set[str]:
+    normalized = language.strip()
+    if not normalized:
+        return {"base"}
+
+    candidates = {normalized, normalized.lower()}
+    if "-" in normalized:
+        parent = normalized.split("-", maxsplit=1)[0]
+        candidates.update({parent, parent.lower()})
+    if normalized.lower() != "base":
+        candidates.add("base")
+    return candidates
+
+
 def _supports_language(available_languages: list[str], language: str) -> bool:
-    return not available_languages or language in available_languages
+    if not available_languages:
+        return True
+    candidates = _language_candidates(language)
+    normalized_available = {item.strip() for item in available_languages if item.strip()}
+    normalized_available.update(item.lower() for item in normalized_available)
+    return not candidates.isdisjoint(normalized_available)
 
 
 def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str) -> dict[str, int | float | str]:
@@ -32,6 +51,7 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
     graph_quality_score = 0.0
     hybrid_policy = "naive"
     routing_decision = "static"
+    graph_filter_fallback_used = False
     top_evidence_type = "none"
     top_chunk_id = ""
 
@@ -42,6 +62,9 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
     for chunk in chunks:
         hybrid_policy = str(chunk.metadata.get("hybrid_policy", hybrid_policy))
         routing_decision = str(chunk.metadata.get("routing_decision", routing_decision))
+        graph_filter_fallback_used = graph_filter_fallback_used or bool(
+            chunk.metadata.get("graph_filter_fallback_used", False)
+        )
         evidence_type = chunk.metadata.get("evidence_type", "text")
         if evidence_type == "graph":
             graph_evidence_count += 1
@@ -60,6 +83,7 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
         "retrieval_mode": retrieval_mode,
         "hybrid_policy": hybrid_policy,
         "routing_decision": routing_decision,
+        "graph_filter_fallback_used": graph_filter_fallback_used,
         "top_evidence_type": top_evidence_type,
         "top_chunk_id": top_chunk_id,
         "text_evidence_count": text_evidence_count,
@@ -251,6 +275,21 @@ class HybridRetriever:
                 if float(chunk.metadata.get("graph_quality_score", 0.0))
                 >= self.retrieval_cfg.graph_min_quality_score
             ]
+            if not filtered and enriched:
+                best_chunk = max(
+                    enriched,
+                    key=lambda chunk: float(chunk.metadata.get("graph_quality_score", 0.0)),
+                )
+                filtered = [
+                    best_chunk.model_copy(
+                        update={
+                            "metadata": {
+                                **best_chunk.metadata,
+                                "graph_filter_fallback_used": True,
+                            }
+                        }
+                    )
+                ]
             return filtered
 
         if self.retrieval_cfg.hybrid_policy == "routed":

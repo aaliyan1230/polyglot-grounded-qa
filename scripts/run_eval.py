@@ -54,6 +54,7 @@ def main() -> None:
                 "retrieval_mode": result.metadata.get("retrieval_mode", "text"),
                 "hybrid_policy": result.metadata.get("hybrid_policy", "naive"),
                 "routing_decision": result.metadata.get("routing_decision", "static"),
+                "graph_filter_fallback_used": result.metadata.get("graph_filter_fallback_used", False),
                 "top_evidence_type": result.metadata.get("top_evidence_type", "none"),
                 "top_chunk_id": result.metadata.get("top_chunk_id", ""),
                 "text_evidence_count": result.metadata.get("text_evidence_count", 0),

@@ -116,10 +116,12 @@ Most of the repo is intentionally local and notebook-friendly:
 Hybrid retrieval now supports three heuristic policies without any GPU requirement:
 
 - `naive`: plain text-plus-graph fusion.
-- `filtered`: drops low-quality graph paths before fusion.
+- `filtered`: drops low-quality graph paths before fusion, but falls back to the single best graph path when strict filtering would remove all graph support.
 - `routed`: shifts graph/text weight based on simple question-type routing.
 
-`scripts/run_ablation.py` now evaluates these retrieval variants over a small multilingual query matrix for `base`, `es`, `fr`, and `tr`, so routing and path filtering are measured on more than a single English query.
+`scripts/run_ablation.py` now evaluates these retrieval variants over a small multilingual query matrix for `base`, `es`, `es-MX`, `fr`, and `tr`, so routing and path filtering are measured on more than a single English query.
+
+Locale-aware retrieval now respects language-pack inheritance for evidence matching, so `es-MX` can reuse `es` graph support instead of being treated as unsupported.
 
 The default retrieval path is also local-first:
 

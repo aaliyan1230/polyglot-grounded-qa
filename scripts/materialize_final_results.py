@@ -164,6 +164,7 @@ def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame
                 "avg_graph_evidence_count",
                 "avg_graph_support_score",
                 "avg_graph_quality_score",
+                "graph_filter_fallback_rate",
                 "graph_top_evidence_rate",
                 "graph_first_route_rate",
                 "text_first_route_rate",
@@ -178,6 +179,7 @@ def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame
                 "avg_graph_evidence_count": f"{prefix}_avg_graph_evidence_count",
                 "avg_graph_support_score": f"{prefix}_avg_graph_support_score",
                 "avg_graph_quality_score": f"{prefix}_avg_graph_quality_score",
+                "graph_filter_fallback_rate": f"{prefix}_graph_filter_fallback_rate",
                 "graph_top_evidence_rate": f"{prefix}_graph_top_evidence_rate",
                 "graph_first_route_rate": f"{prefix}_graph_first_route_rate",
                 "text_first_route_rate": f"{prefix}_text_first_route_rate",
@@ -252,6 +254,7 @@ def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame
         "delta_hybrid_filtered_support_minus_hybrid": 0.0,
         "delta_hybrid_routed_support_minus_hybrid": 0.0,
         "delta_hybrid_routed_graph_top_rate_minus_hybrid": 0.0,
+        "hybrid_filtered_graph_filter_fallback_rate": 0.0,
     }
     for column, default in required_defaults.items():
         if column not in summary.columns:
@@ -289,6 +292,7 @@ def _write_hybrid_takeaways(output_dir: Path) -> None:
                 f"- Filtered-hybrid support delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_filtered_support_minus_hybrid', 0.0)):.4f}.",
                 f"- Routed-hybrid support delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_routed_support_minus_hybrid', 0.0)):.4f}.",
                 f"- Routed-hybrid graph-top-evidence delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_routed_graph_top_rate_minus_hybrid', 0.0)):.4f}.",
+                f"- Filtered-hybrid fallback rate at that slice = {float(strongest.get('hybrid_filtered_graph_filter_fallback_rate', 0.0)):.4f}.",
                 f"- Routed graph-first adherence at that slice = {float(strongest.get('hybrid_routed_graph_first_adherence_rate', 0.0)):.4f}.",
                 f"- Routed text-first adherence at that slice = {float(strongest.get('hybrid_routed_text_first_adherence_rate', 0.0)):.4f}.",
             ]
@@ -366,6 +370,7 @@ def main() -> None:
             AVG(graph_evidence_count)::DOUBLE AS avg_graph_evidence_count,
             AVG(graph_support_score)::DOUBLE AS avg_graph_support_score,
             AVG(graph_quality_score)::DOUBLE AS avg_graph_quality_score,
+            AVG(CASE WHEN graph_filter_fallback_used THEN 1 ELSE 0 END)::DOUBLE AS graph_filter_fallback_rate,
             AVG(CASE WHEN top_evidence_type = 'graph' THEN 1 ELSE 0 END)::DOUBLE AS graph_top_evidence_rate,
             AVG(CASE WHEN routing_decision = 'graph-first' THEN 1 ELSE 0 END)::DOUBLE AS graph_first_route_rate,
             AVG(CASE WHEN routing_decision = 'text-first' THEN 1 ELSE 0 END)::DOUBLE AS text_first_route_rate,

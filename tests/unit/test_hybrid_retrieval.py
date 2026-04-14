@@ -43,6 +43,23 @@ def test_graph_retriever_reports_no_link_for_unknown_query() -> None:
     assert diagnostics.returned_path_count == 0
 
 
+def test_graph_retriever_supports_locale_inheritance_for_es_mx() -> None:
+    retriever = SeedKnowledgeGraphRetriever(
+        paths=get_seed_graph_paths(),
+        min_path_score=0.35,
+        entity_link_min_score=0.2,
+    )
+
+    chunks = retriever.retrieve(
+        query="Que es grounded QA en espanol de Mexico?",
+        language="es-MX",
+        k=3,
+    )
+
+    assert chunks
+    assert all(chunk.metadata.get("evidence_type") == "graph" for chunk in chunks)
+
+
 def test_hybrid_retriever_fuses_text_and_graph_results() -> None:
     cfg = RetrievalConfig.model_validate(
         {

@@ -48,6 +48,7 @@ def test_materialize_final_results_and_contract_core() -> None:
         "delta_hybrid_filtered_support_minus_hybrid",
         "delta_hybrid_routed_support_minus_hybrid",
         "delta_hybrid_routed_graph_top_rate_minus_hybrid",
+        "hybrid_filtered_graph_filter_fallback_rate",
         "hybrid_routed_graph_first_adherence_rate",
         "hybrid_routed_text_first_adherence_rate",
     }.issubset(set(hybrid_summary.columns))

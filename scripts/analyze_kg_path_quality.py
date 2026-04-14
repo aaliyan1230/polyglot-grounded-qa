@@ -24,6 +24,12 @@ AUDIT_QUERIES: dict[str, list[str]] = {
         "Como funciona la herencia de locale?",
         "Como ayuda la recuperacion hibrida?",
     ],
+    "es-MX": [
+        "Que es grounded QA en espanol de Mexico?",
+        "Por que se requieren citas en grounded QA?",
+        "Como funciona la herencia de locale?",
+        "Como ayuda la recuperacion hibrida?",
+    ],
     "fr": [
         "Qu est ce que le grounded QA?",
         "Pourquoi les citations sont elles requises?",
@@ -109,7 +115,7 @@ def _write_report(
         "",
         "## Interpretation",
         "",
-        "This is a heuristic leakage and support-quality audit over retrieved graph paths. It is CPU-only and intended to catch trivial answer-restating support before stronger claims are made.",
+        "This is a heuristic leakage and support-quality audit over retrieved graph paths from the local KG cache, including public Wikidata-backed paths when available. It is CPU-only and intended to catch trivial answer-restating support before stronger claims are made.",
     ]
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

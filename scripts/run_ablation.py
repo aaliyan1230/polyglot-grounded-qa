@@ -23,6 +23,12 @@ ABLATION_QUERY_MATRIX: dict[str, list[dict[str, str]]] = {
         {"query": "Por que se requieren citas en grounded QA?", "category": "justification"},
         {"query": "Cuando debe abstenerse el sistema?", "category": "abstention"},
     ],
+    "es-MX": [
+        {"query": "Que es grounded QA en espanol de Mexico?", "category": "entity-factual"},
+        {"query": "Como funciona la herencia de locale en espanol de Mexico?", "category": "mechanism"},
+        {"query": "Por que se requieren citas en grounded QA?", "category": "justification"},
+        {"query": "Cuando debe abstenerse el sistema?", "category": "abstention"},
+    ],
     "fr": [
         {"query": "Qu est ce que le grounded QA?", "category": "entity-factual"},
         {"query": "Comment fonctionne l heritage des langues?", "category": "mechanism"},
@@ -79,6 +85,7 @@ def main() -> None:
                         "retrieval_mode": result.metadata.get("retrieval_mode", "text"),
                         "hybrid_policy": result.metadata.get("hybrid_policy", "naive"),
                         "routing_decision": result.metadata.get("routing_decision", "static"),
+                        "graph_filter_fallback_used": result.metadata.get("graph_filter_fallback_used", False),
                         "top_evidence_type": result.metadata.get("top_evidence_type", "none"),
                         "top_chunk_id": result.metadata.get("top_chunk_id", ""),
                         "text_evidence_count": result.metadata.get("text_evidence_count", 0),
