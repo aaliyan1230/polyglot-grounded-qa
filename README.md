@@ -109,6 +109,7 @@ Most of the repo is intentionally local and notebook-friendly:
 - `notebooks/85_colab_adapter_training.ipynb`: use Kaggle or Colab T4.
 - `scripts/train_unsloth_sft.py` and `scripts/run_trained_adapter_eval.py`: best run on Kaggle or Colab when adapter dependencies or GPU memory are a constraint.
 - `scripts/build_kg_cache.py` and `scripts/analyze_kg_coverage.py`: CPU-only and suitable for local runs.
+- `scripts/analyze_kg_path_quality.py`: CPU-only leakage and support-quality audit for hybrid KG paths.
 
 The default retrieval path is also local-first:
 
@@ -145,6 +146,9 @@ uv run python scripts/run_pipeline.py "What is grounded QA?" --language base
 
 # Run a graph-coverage audit
 uv run python scripts/analyze_kg_coverage.py
+
+# Audit graph path quality and leakage risk
+uv run python scripts/analyze_kg_path_quality.py
 
 # Run evaluation
 uv run python scripts/run_eval.py

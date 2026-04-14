@@ -11,19 +11,37 @@ CORE_ARTIFACT_COLUMNS: dict[str, set[str]] = {
         "run_name",
         "language",
         "config_hash",
+        "retrieval_mode",
         "question_count",
         "abstained_count",
         "avg_citations",
         "abstain_rate",
+        "avg_text_evidence_count",
+        "avg_graph_evidence_count",
+        "avg_graph_support_score",
     },
     "artifacts/tables/final_ablation_summary.parquet": {
         "run_name",
         "language",
         "variant",
+        "retrieval_mode",
         "sample_count",
         "abstained_count",
         "avg_citations",
         "abstain_rate",
+        "avg_text_evidence_count",
+        "avg_graph_evidence_count",
+        "avg_graph_support_score",
+    },
+    "artifacts/tables/final_hybrid_summary.parquet": {
+        "language",
+        "text_avg_graph_evidence_count",
+        "kg_only_avg_graph_evidence_count",
+        "hybrid_avg_graph_evidence_count",
+        "hybrid_avg_graph_support_score",
+        "kg_path_yield_rate",
+        "supporting_path_rate",
+        "high_leakage_rate",
     },
     "artifacts/tables/final_repro_diagnostics.parquet": {"metric", "value"},
 }
@@ -60,6 +78,7 @@ FINETUNE_ARTIFACT_COLUMNS: dict[str, set[str]] = {
 
 TEXT_ARTIFACTS = [
     "artifacts/tables/final_reader_takeaways.md",
+    "artifacts/tables/final_hybrid_takeaways.md",
 ]
 
 

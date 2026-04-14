@@ -156,6 +156,41 @@ def test_analyze_kg_coverage_script_writes_contract_outputs() -> None:
     }.issubset(set(by_language_df.columns))
 
 
+def test_analyze_kg_path_quality_script_writes_contract_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(["uv", "run", "python", "scripts/analyze_kg_path_quality.py"], cwd=root, check=True)
+
+    summary_path = root / "artifacts" / "tables" / "kg_path_quality_summary.parquet"
+    by_language_path = root / "artifacts" / "tables" / "kg_path_quality_by_language.parquet"
+    rows_path = root / "artifacts" / "tables" / "kg_path_quality_rows.parquet"
+    report_path = root / "artifacts" / "tables" / "kg_path_quality_report.md"
+
+    assert summary_path.exists()
+    assert by_language_path.exists()
+    assert rows_path.exists()
+    assert report_path.exists()
+
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "## Summary" in report_text
+    assert "## Sample audited paths" in report_text
+
+    summary_df = pl.read_parquet(summary_path)
+    assert {
+        "quality_label",
+        "leakage_risk",
+        "rows",
+        "avg_graph_path_score",
+    }.issubset(set(summary_df.columns))
+
+    by_language_df = pl.read_parquet(by_language_path)
+    assert {
+        "language",
+        "supporting_path_rate",
+        "explicit_restatement_rate",
+        "high_leakage_rate",
+    }.issubset(set(by_language_df.columns))
+
+
 def test_analyze_sft_dataset_script_writes_contract_outputs() -> None:
     root = Path(__file__).resolve().parents[2]
     subprocess.run(
