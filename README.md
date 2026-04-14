@@ -111,6 +111,8 @@ Most of the repo is intentionally local and notebook-friendly:
 - `scripts/build_kg_cache.py` and `scripts/analyze_kg_coverage.py`: CPU-only and suitable for local runs.
 - `scripts/analyze_kg_path_quality.py`: CPU-only leakage and support-quality audit for hybrid KG paths.
 
+`scripts/build_kg_cache.py` attempts a small Wikidata-backed cache build first and falls back to the repo's local seed paths when the network is unavailable.
+
 The default retrieval path is also local-first:
 
 - Primary backend: FAISS plus BM25.
@@ -140,6 +142,9 @@ uv run python scripts/build_index.py
 
 # Build or refresh the seed KG cache
 uv run python scripts/build_kg_cache.py
+
+# Force a fully local seed-only KG cache rebuild
+uv run python scripts/build_kg_cache.py --offline --refresh
 
 # Run the baseline pipeline on one query
 uv run python scripts/run_pipeline.py "What is grounded QA?" --language base

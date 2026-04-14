@@ -6,7 +6,7 @@ import polars as pl
 
 from polyglot_grounded_qa.components.retriever import SeedKnowledgeGraphRetriever
 from polyglot_grounded_qa.core.config_loader import load_app_config
-from polyglot_grounded_qa.core.seed_data import get_seed_graph_paths
+from polyglot_grounded_qa.core.kg_cache import load_graph_paths
 from polyglot_grounded_qa.utils.io import ensure_parent_dir, write_parquet
 
 
@@ -118,7 +118,7 @@ def main() -> None:
     project_root = Path(__file__).resolve().parents[1]
     cfg = load_app_config(project_root=project_root)
     retriever = SeedKnowledgeGraphRetriever(
-        paths=get_seed_graph_paths(),
+        paths=load_graph_paths(project_root),
         min_path_score=cfg.pipeline.retrieval.graph_min_path_score,
         entity_link_min_score=cfg.pipeline.retrieval.entity_link_min_score,
     )

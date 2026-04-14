@@ -110,16 +110,26 @@ def test_run_ablation_script_writes_expected_columns() -> None:
 
 def test_build_kg_cache_script_writes_seed_artifact() -> None:
     root = Path(__file__).resolve().parents[2]
-    subprocess.run(["uv", "run", "python", "scripts/build_kg_cache.py"], cwd=root, check=True)
+    subprocess.run(
+        ["uv", "run", "python", "scripts/build_kg_cache.py", "--offline", "--refresh"],
+        cwd=root,
+        check=True,
+    )
 
     index_path = root / "artifacts" / "indexes" / "kg_seed_paths.parquet"
     assert index_path.exists()
 
     df = pl.read_parquet(index_path)
     assert len(df) >= 4
-    assert {"path_id", "language", "path_length", "score", "path_text"}.issubset(
-        set(df.columns)
-    )
+    assert {
+        "path_id",
+        "language",
+        "path_length",
+        "score",
+        "path_text",
+        "source",
+        "triples_json",
+    }.issubset(set(df.columns))
 
 
 def test_analyze_kg_coverage_script_writes_contract_outputs() -> None:

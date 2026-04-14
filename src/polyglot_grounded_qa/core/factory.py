@@ -16,8 +16,9 @@ from polyglot_grounded_qa.components.retriever import (
 )
 from polyglot_grounded_qa.components.verifier import BaselineVerifier
 from polyglot_grounded_qa.core.config_loader import load_app_config
+from polyglot_grounded_qa.core.kg_cache import load_graph_paths
 from polyglot_grounded_qa.core.pipeline import GroundedQAPipeline
-from polyglot_grounded_qa.core.seed_data import get_seed_corpus, get_seed_graph_paths
+from polyglot_grounded_qa.core.seed_data import get_seed_corpus
 from polyglot_grounded_qa.schemas.config import RetrievalConfig
 
 
@@ -45,7 +46,7 @@ def create_default_pipeline(
     cfg = load_app_config(project_root=Path(project_root))
     default_language = cfg.languages[cfg.pipeline.default_language]
     seed_corpus = get_seed_corpus()
-    seed_graph_paths = get_seed_graph_paths()
+    seed_graph_paths = load_graph_paths(Path(project_root))
     generator = _select_generator(cfg.models)
     requested_mode = retrieval_mode or os.getenv(
         "PGQA_RETRIEVAL_MODE", cfg.pipeline.retrieval.mode
