@@ -52,6 +52,8 @@ def test_run_eval_script_writes_expected_columns() -> None:
         "retrieval_mode",
         "hybrid_policy",
         "routing_decision",
+        "top_evidence_type",
+        "top_chunk_id",
         "text_evidence_count",
         "graph_evidence_count",
     }
@@ -80,6 +82,8 @@ def test_run_eval_script_is_reproducible_on_key_outputs() -> None:
         "retrieval_mode",
         "hybrid_policy",
         "routing_decision",
+        "top_evidence_type",
+        "top_chunk_id",
         "text_evidence_count",
         "graph_evidence_count",
     ]
@@ -102,12 +106,16 @@ def test_run_ablation_script_writes_expected_columns() -> None:
         "timestamp_utc",
         "config_hash",
         "variant",
+        "query",
+        "query_category",
         "answer",
         "abstained",
         "citation_count",
         "retrieval_mode",
         "hybrid_policy",
         "routing_decision",
+        "top_evidence_type",
+        "top_chunk_id",
         "text_evidence_count",
         "graph_evidence_count",
     }
@@ -115,6 +123,7 @@ def test_run_ablation_script_writes_expected_columns() -> None:
     assert {"text-only", "kg-only", "hybrid", "hybrid-path-filtered", "hybrid-routed"}.issubset(
         set(df.get_column("variant").to_list())
     )
+    assert {"base", "es", "fr", "tr"}.issubset(set(df.get_column("language").to_list()))
 
 
 def test_build_kg_cache_script_writes_seed_artifact() -> None:

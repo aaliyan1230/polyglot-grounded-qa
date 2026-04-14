@@ -54,6 +54,8 @@ def main() -> None:
                 "retrieval_mode": result.metadata.get("retrieval_mode", "text"),
                 "hybrid_policy": result.metadata.get("hybrid_policy", "naive"),
                 "routing_decision": result.metadata.get("routing_decision", "static"),
+                "top_evidence_type": result.metadata.get("top_evidence_type", "none"),
+                "top_chunk_id": result.metadata.get("top_chunk_id", ""),
                 "text_evidence_count": result.metadata.get("text_evidence_count", 0),
                 "graph_evidence_count": result.metadata.get("graph_evidence_count", 0),
                 "graph_support_score": result.metadata.get("graph_support_score", 0.0),

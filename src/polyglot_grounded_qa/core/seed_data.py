@@ -57,7 +57,15 @@ def get_seed_graph_paths() -> list[KnowledgeGraphPath]:
             score=0.82,
             languages=["base", "es", "fr", "tr"],
             metadata={
-                "aliases": ["grounded qa", "retrieval", "citations", "verification"],
+                "aliases": [
+                    "grounded qa",
+                    "retrieval",
+                    "citations",
+                    "verification",
+                    "que es grounded qa",
+                    "qu est ce que le grounded qa",
+                    "grounded qa nedir",
+                ],
             },
         ),
         KnowledgeGraphPath(
@@ -77,7 +85,14 @@ def get_seed_graph_paths() -> list[KnowledgeGraphPath]:
             score=0.78,
             languages=["base", "es", "fr", "tr"],
             metadata={
-                "aliases": ["language packs", "locale inheritance", "base behavior"],
+                "aliases": [
+                    "language packs",
+                    "locale inheritance",
+                    "base behavior",
+                    "herencia de locale",
+                    "heritage des langues",
+                    "dil paketleri mirasi",
+                ],
             },
         ),
         KnowledgeGraphPath(
@@ -97,7 +112,16 @@ def get_seed_graph_paths() -> list[KnowledgeGraphPath]:
             score=0.74,
             languages=["base", "fr", "tr"],
             metadata={
-                "aliases": ["abstain", "abstention", "weak evidence", "unsupported answer"],
+                "aliases": [
+                    "abstain",
+                    "abstention",
+                    "weak evidence",
+                    "unsupported answer",
+                    "abstenerse",
+                    "s abstenir",
+                    "cekimser",
+                    "cekimser kalmali",
+                ],
             },
         ),
         KnowledgeGraphPath(
@@ -117,7 +141,15 @@ def get_seed_graph_paths() -> list[KnowledgeGraphPath]:
             score=0.76,
             languages=["base", "es", "fr"],
             metadata={
-                "aliases": ["hybrid retrieval", "knowledge graph", "kg paths", "graph support"],
+                "aliases": [
+                    "hybrid retrieval",
+                    "knowledge graph",
+                    "kg paths",
+                    "graph support",
+                    "recuperacion hibrida",
+                    "graphe de connaissances",
+                    "graf destekli alma",
+                ],
             },
         ),
     ]

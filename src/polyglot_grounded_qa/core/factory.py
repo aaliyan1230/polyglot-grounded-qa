@@ -44,6 +44,7 @@ def create_default_pipeline(
     project_root: str,
     retrieval_mode: str | None = None,
     hybrid_policy: str | None = None,
+    retrieval_overrides: dict[str, Any] | None = None,
 ) -> GroundedQAPipeline:
     cfg = load_app_config(project_root=Path(project_root))
     default_language = cfg.languages[cfg.pipeline.default_language]
@@ -56,12 +57,15 @@ def create_default_pipeline(
     requested_policy = hybrid_policy or os.getenv(
         "PGQA_HYBRID_POLICY", cfg.pipeline.retrieval.hybrid_policy
     )
+    retrieval_payload = {
+        **cfg.pipeline.retrieval.model_dump(),
+        "mode": requested_mode,
+        "hybrid_policy": requested_policy,
+    }
+    if retrieval_overrides:
+        retrieval_payload.update(retrieval_overrides)
     retrieval_cfg = RetrievalConfig.model_validate(
-        {
-            **cfg.pipeline.retrieval.model_dump(),
-            "mode": requested_mode,
-            "hybrid_policy": requested_policy,
-        }
+        retrieval_payload
     )
     text_retriever = BaselineRetriever(corpus=seed_corpus)
     graph_retriever = SeedKnowledgeGraphRetriever(

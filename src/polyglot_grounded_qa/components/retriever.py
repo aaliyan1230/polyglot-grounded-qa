@@ -32,6 +32,12 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
     graph_quality_score = 0.0
     hybrid_policy = "naive"
     routing_decision = "static"
+    top_evidence_type = "none"
+    top_chunk_id = ""
+
+    if chunks:
+        top_evidence_type = str(chunks[0].metadata.get("evidence_type", "text"))
+        top_chunk_id = chunks[0].chunk_id
 
     for chunk in chunks:
         hybrid_policy = str(chunk.metadata.get("hybrid_policy", hybrid_policy))
@@ -54,6 +60,8 @@ def summarize_retrieved_chunks(chunks: list[RetrievedChunk], retrieval_mode: str
         "retrieval_mode": retrieval_mode,
         "hybrid_policy": hybrid_policy,
         "routing_decision": routing_decision,
+        "top_evidence_type": top_evidence_type,
+        "top_chunk_id": top_chunk_id,
         "text_evidence_count": text_evidence_count,
         "graph_evidence_count": graph_evidence_count,
         "graph_support_score": round(graph_support_score, 4),
@@ -303,6 +311,43 @@ class HybridRetriever:
             for chunk in chunks
         ]
 
+    def _apply_route_ordering(
+        self, chunks: list[RetrievedChunk], routing_decision: str
+    ) -> list[RetrievedChunk]:
+        if routing_decision not in {"graph-first", "text-first"}:
+            return chunks
+
+        preferred_type = "graph" if routing_decision == "graph-first" else "text"
+        preferred = [
+            chunk for chunk in chunks if str(chunk.metadata.get("evidence_type", "text")) == preferred_type
+        ]
+        remaining = [
+            chunk for chunk in chunks if str(chunk.metadata.get("evidence_type", "text")) != preferred_type
+        ]
+        return preferred + remaining
+
+    def _assemble_routed_chunks(
+        self,
+        text_chunks: list[RetrievedChunk],
+        graph_chunks: list[RetrievedChunk],
+        routing_decision: str,
+        k: int,
+    ) -> list[RetrievedChunk]:
+        if routing_decision == "graph-first":
+            ordered = graph_chunks[: min(len(graph_chunks), max(2, k - 1))] + text_chunks[:1]
+            return ordered[:k]
+        if routing_decision == "text-first":
+            ordered = text_chunks[: min(len(text_chunks), max(2, k - 1))] + graph_chunks[:1]
+            return ordered[:k]
+        fused = self._fuse_ranked_lists(
+            text_chunks=text_chunks,
+            graph_chunks=graph_chunks,
+            k=k,
+            graph_weight=self.retrieval_cfg.graph_weight,
+            text_weight=self.retrieval_cfg.text_weight,
+        )
+        return self._apply_route_ordering(fused, routing_decision=routing_decision)
+
     def _fuse_ranked_lists(
         self,
         text_chunks: list[RetrievedChunk],
@@ -359,17 +404,26 @@ class HybridRetriever:
         if self.retrieval_cfg.hybrid_policy == "routed":
             routing_decision = self._route_query(query)
             if routing_decision == "graph-first":
-                graph_weight = 0.6
-                text_weight = 0.4
+                graph_chunks = graph_chunks[: min(len(graph_chunks), max(2, self.retrieval_cfg.graph_top_k))]
+                text_chunks = text_chunks[:1]
             elif routing_decision == "text-first":
-                graph_weight = 0.2
-                text_weight = 0.8
+                graph_chunks = graph_chunks[:1]
+                text_chunks = text_chunks[: min(len(text_chunks), max(3, self.retrieval_cfg.top_k_dense // 2))]
 
-        fused = self._fuse_ranked_lists(
-            text_chunks=text_chunks,
-            graph_chunks=graph_chunks,
-            k=k,
-            graph_weight=graph_weight,
-            text_weight=text_weight,
-        )
+        if self.retrieval_cfg.hybrid_policy == "routed":
+            fused = self._assemble_routed_chunks(
+                text_chunks=text_chunks,
+                graph_chunks=graph_chunks,
+                routing_decision=routing_decision,
+                k=k,
+            )
+        else:
+            fused = self._fuse_ranked_lists(
+                text_chunks=text_chunks,
+                graph_chunks=graph_chunks,
+                k=k,
+                graph_weight=graph_weight,
+                text_weight=text_weight,
+            )
+            fused = self._apply_route_ordering(fused, routing_decision=routing_decision)
         return self._annotate_chunks(fused, routing_decision=routing_decision)

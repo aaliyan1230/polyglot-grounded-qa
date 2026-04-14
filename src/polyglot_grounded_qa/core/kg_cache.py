@@ -81,6 +81,7 @@ def deserialize_graph_paths(df: pl.DataFrame) -> list[KnowledgeGraphPath]:
 
     paths: list[KnowledgeGraphPath] = []
     for path_id, group in df.group_by("path_id"):
+        resolved_path_id = path_id[0] if isinstance(path_id, tuple) else path_id
         row = group.sort("language").row(0, named=True)
         triples_data = _parse_json_list(row.get("triples_json"))
         triples = [KnowledgeGraphTriple.model_validate(item) for item in triples_data if isinstance(item, dict)]
@@ -91,7 +92,7 @@ def deserialize_graph_paths(df: pl.DataFrame) -> list[KnowledgeGraphPath]:
         metadata["aliases"] = [str(alias) for alias in aliases]
         paths.append(
             KnowledgeGraphPath(
-                path_id=str(path_id),
+                path_id=str(resolved_path_id),
                 triples=triples,
                 score=float(row.get("score", 0.0)),
                 languages=[str(language) for language in group.get_column("language").to_list()],

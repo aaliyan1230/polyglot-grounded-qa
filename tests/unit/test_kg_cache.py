@@ -29,3 +29,4 @@ def test_load_graph_paths_roundtrips_from_cache(tmp_path: Path) -> None:
     assert paths
     assert any(path.metadata.get("aliases") for path in paths)
     assert any(path.metadata.get("source", "seed") == "seed" for path in paths)
+    assert all(not path.path_id.startswith("(") for path in paths)

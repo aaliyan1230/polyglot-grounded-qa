@@ -119,6 +119,8 @@ Hybrid retrieval now supports three heuristic policies without any GPU requireme
 - `filtered`: drops low-quality graph paths before fusion.
 - `routed`: shifts graph/text weight based on simple question-type routing.
 
+`scripts/run_ablation.py` now evaluates these retrieval variants over a small multilingual query matrix for `base`, `es`, `fr`, and `tr`, so routing and path filtering are measured on more than a single English query.
+
 The default retrieval path is also local-first:
 
 - Primary backend: FAISS plus BM25.

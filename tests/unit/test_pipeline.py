@@ -28,4 +28,5 @@ def test_routed_hybrid_pipeline_surfaces_routing_metadata() -> None:
     result = pipeline.run("What is grounded QA?", language="base")
 
     assert result.metadata.get("hybrid_policy") == "routed"
-    assert result.metadata.get("routing_decision") in {"graph-first", "text-first", "balanced"}
+    assert result.metadata.get("routing_decision") == "graph-first"
+    assert result.metadata.get("top_evidence_type") == "graph"

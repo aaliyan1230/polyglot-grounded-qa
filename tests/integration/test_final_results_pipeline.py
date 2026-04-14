@@ -47,4 +47,7 @@ def test_materialize_final_results_and_contract_core() -> None:
         "high_leakage_rate",
         "delta_hybrid_filtered_support_minus_hybrid",
         "delta_hybrid_routed_support_minus_hybrid",
+        "delta_hybrid_routed_graph_top_rate_minus_hybrid",
+        "hybrid_routed_graph_first_adherence_rate",
+        "hybrid_routed_text_first_adherence_rate",
     }.issubset(set(hybrid_summary.columns))

@@ -139,3 +139,4 @@ def test_routed_hybrid_retriever_marks_graph_first_queries() -> None:
     assert chunks
     assert chunks[0].metadata.get("hybrid_policy") == "routed"
     assert chunks[0].metadata.get("routing_decision") == "graph-first"
+    assert chunks[0].metadata.get("evidence_type") == "graph"
