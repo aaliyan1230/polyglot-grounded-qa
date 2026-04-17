@@ -59,6 +59,37 @@ def _make_synthetic_negative(sample_id: str, language: str, source: str, probe_i
     }
 
 
+def _make_hard_negative(
+    sample_id: str,
+    language: str,
+    query: str,
+    wrong_context: str,
+    wrong_chunk_id: str,
+    source: str,
+) -> dict[str, Any]:
+    """Create a hard negative: real question paired with wrong (but real) context."""
+    return {
+        "id": sample_id,
+        "language": language,
+        "query": query,
+        "retrieved_chunks": [
+            {
+                "doc_id": f"{source}-doc",
+                "chunk_id": wrong_chunk_id,
+                "text": wrong_context,
+            }
+        ],
+        "target": {
+            "answer": "I do not have enough evidence.",
+            "citations": [],
+            "abstained": True,
+            "reason": "insufficient_evidence",
+        },
+        "label_type": "insufficient_evidence",
+        "source": f"hard-negative:{source}",
+    }
+
+
 def _abstain_ratio(rows: list[dict[str, Any]]) -> float:
     if not rows:
         return 0.0
@@ -100,6 +131,12 @@ def main() -> None:
         type=float,
         default=0.2,
         help="Minimum abstention ratio enforced per language after bootstrap/top-up.",
+    )
+    parser.add_argument(
+        "--hard-negatives-per-language",
+        type=int,
+        default=0,
+        help="Hard negatives per language: real questions paired with wrong context passages.",
     )
     args = parser.parse_args()
 
@@ -199,6 +236,35 @@ def main() -> None:
             )
             by_language_rows[repo_lang].append(rows[-1])
             counter += 1
+
+        # Hard negatives: pair each question with a random WRONG context from same language.
+        if args.hard_negatives_per_language > 0:
+            answerable_pool = [
+                r for r in by_language_rows[repo_lang]
+                if r["label_type"] == "answerable" and r.get("retrieved_chunks")
+            ]
+            if len(answerable_pool) >= 2:
+                hn_count = min(args.hard_negatives_per_language, len(answerable_pool))
+                hn_indices = list(range(len(answerable_pool)))
+                rng.shuffle(hn_indices)
+                for hn_idx in range(hn_count):
+                    question_row = answerable_pool[hn_indices[hn_idx]]
+                    # Pick a different row's context
+                    wrong_idx = (hn_idx + 1) % len(answerable_pool)
+                    wrong_row = answerable_pool[hn_indices[wrong_idx]]
+                    wrong_chunk = wrong_row["retrieved_chunks"][0]
+                    rows.append(
+                        _make_hard_negative(
+                            sample_id=f"public-{counter:07d}",
+                            language=repo_lang,
+                            query=question_row["query"],
+                            wrong_context=wrong_chunk["text"],
+                            wrong_chunk_id=f"hn-{counter}-chunk-0",
+                            source=question_row.get("source", "unknown"),
+                        )
+                    )
+                    by_language_rows[repo_lang].append(rows[-1])
+                    counter += 1
 
     # Bootstrap missing languages from base samples when public sources are sparse.
     base_pool = [row for row in by_language_rows.get("base", []) if row["label_type"] == "answerable"]

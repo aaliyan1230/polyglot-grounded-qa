@@ -19,6 +19,7 @@ class ThresholdConfig(BaseModel):
     graph_min_path_score: float = Field(ge=0.0, le=1.0, default=0.4)
     graph_min_path_count: int = Field(ge=0, default=1)
     hybrid_min_text_evidence: int = Field(ge=0, default=1)
+    hybrid_min_text_support: float = Field(ge=0.0, le=1.0, default=0.50)
 
 
 class LanguageConfig(BaseModel):

@@ -116,6 +116,7 @@ def _build_answer(
             "retrieval_mode": retrieval_mode,
             "text_evidence_count": len(text_chunks),
             "graph_evidence_count": len(graph_chunks),
+            "text_support_score": text_support_score,
             "graph_support_score": graph_support_score,
             "graph_quality_score": graph_quality_score,
             "top_evidence_type": "graph" if graph_chunks else ("text" if text_chunks else "none"),

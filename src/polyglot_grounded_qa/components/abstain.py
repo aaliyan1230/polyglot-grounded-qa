@@ -48,5 +48,11 @@ class GraphAwareAbstentionPolicy:
             text_evidence_count = int(answer.metadata.get("text_evidence_count", 0))
             if text_evidence_count < self.thresholds.hybrid_min_text_evidence:
                 return True
+            # In hybrid mode, graph evidence can inflate overall confidence.
+            # Check text support independently to catch hard negatives
+            # (real context that doesn't answer the question).
+            text_support = float(answer.metadata.get("text_support_score", 0.0))
+            if text_support > 0.0 and text_support < self.thresholds.hybrid_min_text_support:
+                return True
 
         return False
