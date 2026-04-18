@@ -180,6 +180,7 @@ def _hf_adapter_predictions(
 
         inputs = tokenizer(prompt, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
+        input_len = inputs["input_ids"].shape[-1]
 
         with torch_module.no_grad():
             generated = model.generate(
@@ -189,7 +190,9 @@ def _hf_adapter_predictions(
                 do_sample=temperature > 0,
             )
 
-        text = tokenizer.decode(generated[0], skip_special_tokens=True)
+        # Strip the input prompt tokens so we only decode the model's new output.
+        new_tokens = generated[0][input_len:]
+        text = tokenizer.decode(new_tokens, skip_special_tokens=True)
         json_obj = _extract_json_obj(text)
         payload = json.dumps(json_obj if json_obj is not None else {"raw": text}, ensure_ascii=True)
 
