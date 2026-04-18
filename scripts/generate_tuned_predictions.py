@@ -242,6 +242,7 @@ def main() -> None:
     )
     parser.add_argument("--max-new-tokens", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--no-adapter", action="store_true", help="Skip adapter loading even if adapter_path is in config.")
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
@@ -255,7 +256,9 @@ def main() -> None:
 
     if args.base_model:
         base_model = args.base_model
-    if args.adapter_path:
+    if args.no_adapter:
+        adapter_path = ""
+    elif args.adapter_path:
         adapter_path = args.adapter_path
     if args.max_new_tokens is not None:
         max_new_tokens = args.max_new_tokens
