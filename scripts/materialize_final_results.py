@@ -123,10 +123,210 @@ def _write_reader_takeaways(output_dir: Path) -> None:
         ]
     )
 
+    hybrid_summary_path = output_dir / "final_hybrid_summary.parquet"
+    if hybrid_summary_path.exists():
+        hybrid_summary = pd.read_parquet(hybrid_summary_path)
+        if not hybrid_summary.empty:
+            best_yield = hybrid_summary.sort_values("kg_path_yield_rate", ascending=False).iloc[0]
+            takeaway_lines.extend(
+                [
+                    "",
+                    "### Hybrid retrieval snapshot",
+                    f"- Strongest current KG coverage appears in **{best_yield['language']}** with path yield rate = {float(best_yield.get('kg_path_yield_rate', 0.0)):.4f}.",
+                    f"- Hybrid graph support delta vs text-only = {float(best_yield.get('delta_hybrid_graph_support_score_minus_text', 0.0)):.4f} for that slice.",
+                    f"- High leakage risk rate for that slice = {float(best_yield.get('high_leakage_rate', 0.0)):.4f}.",
+                ]
+            )
+
+    abstention_summary_path = output_dir / "final_hybrid_abstention_summary.parquet"
+    if abstention_summary_path.exists():
+        abstention_summary = pd.read_parquet(abstention_summary_path)
+        if not abstention_summary.empty:
+            best_abstention = abstention_summary.sort_values("abstain_accuracy", ascending=False).iloc[0]
+            takeaway_lines.extend(
+                [
+                    "",
+                    "### Hybrid abstention snapshot",
+                    f"- Strongest abstention variant: **{best_abstention['variant']}** with abstain accuracy = {float(best_abstention.get('abstain_accuracy', 0.0)):.4f}.",
+                    f"- Abstain precision = {float(best_abstention.get('abstain_precision', 0.0)):.4f}, abstain recall = {float(best_abstention.get('abstain_recall', 0.0)):.4f}.",
+                    f"- Average graph support score for that variant = {float(best_abstention.get('avg_graph_support_score', 0.0)):.4f}.",
+                ]
+            )
+
     takeaway_text = "\n".join(takeaway_lines)
     out_path = output_dir / "final_reader_takeaways.md"
     out_path.write_text(takeaway_text + "\n", encoding="utf-8")
     print(f"Wrote {out_path}")
+
+
+def _materialize_hybrid_summary(output_dir: Path, ablation_summary: pd.DataFrame) -> None:
+    languages = sorted(ablation_summary["language"].astype(str).unique().tolist())
+    summary = pd.DataFrame({"language": languages})
+
+    variant_frames = {
+        "text-only": "text",
+        "kg-only": "kg_only",
+        "hybrid": "hybrid",
+        "hybrid-path-filtered": "hybrid_filtered",
+        "hybrid-routed": "hybrid_routed",
+    }
+    for variant_name, prefix in variant_frames.items():
+        subset = ablation_summary[ablation_summary["variant"] == variant_name][
+            [
+                "language",
+                "avg_citations",
+                "avg_text_evidence_count",
+                "avg_graph_evidence_count",
+                "avg_graph_support_score",
+                "avg_graph_quality_score",
+                "graph_filter_fallback_rate",
+                "graph_top_evidence_rate",
+                "graph_first_route_rate",
+                "text_first_route_rate",
+                "graph_first_adherence_rate",
+                "text_first_adherence_rate",
+                "abstain_rate",
+            ]
+        ].rename(
+            columns={
+                "avg_citations": f"{prefix}_avg_citations",
+                "avg_text_evidence_count": f"{prefix}_avg_text_evidence_count",
+                "avg_graph_evidence_count": f"{prefix}_avg_graph_evidence_count",
+                "avg_graph_support_score": f"{prefix}_avg_graph_support_score",
+                "avg_graph_quality_score": f"{prefix}_avg_graph_quality_score",
+                "graph_filter_fallback_rate": f"{prefix}_graph_filter_fallback_rate",
+                "graph_top_evidence_rate": f"{prefix}_graph_top_evidence_rate",
+                "graph_first_route_rate": f"{prefix}_graph_first_route_rate",
+                "text_first_route_rate": f"{prefix}_text_first_route_rate",
+                "graph_first_adherence_rate": f"{prefix}_graph_first_adherence_rate",
+                "text_first_adherence_rate": f"{prefix}_text_first_adherence_rate",
+                "abstain_rate": f"{prefix}_abstain_rate",
+            }
+        )
+        summary = summary.merge(subset, on="language", how="left")
+
+    coverage_by_language_path = output_dir / "kg_coverage_by_language.parquet"
+    if coverage_by_language_path.exists():
+        coverage = pd.read_parquet(coverage_by_language_path).rename(
+            columns={
+                "path_yield_rate": "kg_path_yield_rate",
+                "avg_linked_entity_count": "kg_avg_linked_entity_count",
+                "avg_returned_path_count": "kg_avg_returned_path_count",
+                "avg_max_path_score": "kg_avg_max_path_score",
+            }
+        )
+        summary = summary.merge(coverage, on="language", how="left")
+
+    path_quality_by_language_path = output_dir / "kg_path_quality_by_language.parquet"
+    if path_quality_by_language_path.exists():
+        path_quality = pd.read_parquet(path_quality_by_language_path)
+        summary = summary.merge(path_quality, on="language", how="left")
+
+    if "hybrid_avg_graph_support_score" in summary.columns and "text_avg_graph_support_score" in summary.columns:
+        summary["delta_hybrid_graph_support_score_minus_text"] = (
+            summary["hybrid_avg_graph_support_score"].fillna(0.0)
+            - summary["text_avg_graph_support_score"].fillna(0.0)
+        )
+    if "hybrid_avg_graph_evidence_count" in summary.columns and "text_avg_graph_evidence_count" in summary.columns:
+        summary["delta_hybrid_graph_evidence_minus_text"] = (
+            summary["hybrid_avg_graph_evidence_count"].fillna(0.0)
+            - summary["text_avg_graph_evidence_count"].fillna(0.0)
+        )
+    if (
+        "hybrid_filtered_avg_graph_support_score" in summary.columns
+        and "hybrid_avg_graph_support_score" in summary.columns
+    ):
+        summary["delta_hybrid_filtered_support_minus_hybrid"] = (
+            summary["hybrid_filtered_avg_graph_support_score"].fillna(0.0)
+            - summary["hybrid_avg_graph_support_score"].fillna(0.0)
+        )
+    if (
+        "hybrid_routed_avg_graph_support_score" in summary.columns
+        and "hybrid_avg_graph_support_score" in summary.columns
+    ):
+        summary["delta_hybrid_routed_support_minus_hybrid"] = (
+            summary["hybrid_routed_avg_graph_support_score"].fillna(0.0)
+            - summary["hybrid_avg_graph_support_score"].fillna(0.0)
+        )
+    if (
+        "hybrid_routed_graph_top_evidence_rate" in summary.columns
+        and "hybrid_graph_top_evidence_rate" in summary.columns
+    ):
+        summary["delta_hybrid_routed_graph_top_rate_minus_hybrid"] = (
+            summary["hybrid_routed_graph_top_evidence_rate"].fillna(0.0)
+            - summary["hybrid_graph_top_evidence_rate"].fillna(0.0)
+        )
+
+    required_defaults = {
+        "text_avg_graph_evidence_count": 0.0,
+        "kg_only_avg_graph_evidence_count": 0.0,
+        "hybrid_avg_graph_evidence_count": 0.0,
+        "hybrid_avg_graph_support_score": 0.0,
+        "kg_path_yield_rate": 0.0,
+        "supporting_path_rate": 0.0,
+        "high_leakage_rate": 0.0,
+        "delta_hybrid_graph_support_score_minus_text": 0.0,
+        "delta_hybrid_filtered_support_minus_hybrid": 0.0,
+        "delta_hybrid_routed_support_minus_hybrid": 0.0,
+        "delta_hybrid_routed_graph_top_rate_minus_hybrid": 0.0,
+        "hybrid_filtered_graph_filter_fallback_rate": 0.0,
+    }
+    for column, default in required_defaults.items():
+        if column not in summary.columns:
+            summary[column] = default
+
+    summary.to_parquet(output_dir / "final_hybrid_summary.parquet", index=False)
+
+
+def _write_hybrid_takeaways(output_dir: Path) -> None:
+    summary_path = output_dir / "final_hybrid_summary.parquet"
+    if not summary_path.exists():
+        return
+
+    summary = pd.read_parquet(summary_path)
+    lines = [
+        "# Hybrid Retrieval Takeaways",
+        "",
+        "This section summarizes the current hybrid KG-RAG artifact state.",
+        "",
+    ]
+    if summary.empty:
+        lines.append("- No hybrid summary rows are available yet.")
+    else:
+        by_yield = summary.sort_values("kg_path_yield_rate", ascending=False)
+        best_yield = by_yield.iloc[0]
+        safest = summary.sort_values("high_leakage_rate", ascending=True).iloc[0]
+        strongest = summary.sort_values(
+            "delta_hybrid_graph_support_score_minus_text", ascending=False
+        ).iloc[0]
+        lines.extend(
+            [
+                f"- Best KG coverage slice: **{best_yield['language']}** with path yield rate = {float(best_yield.get('kg_path_yield_rate', 0.0)):.4f}.",
+                f"- Strongest hybrid graph-support delta vs text-only: **{strongest['language']}** with $\\Delta$ support score = {float(strongest.get('delta_hybrid_graph_support_score_minus_text', 0.0)):.4f}.",
+                f"- Lowest current high-leakage rate: **{safest['language']}** at {float(safest.get('high_leakage_rate', 0.0)):.4f}.",
+                f"- Filtered-hybrid support delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_filtered_support_minus_hybrid', 0.0)):.4f}.",
+                f"- Routed-hybrid support delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_routed_support_minus_hybrid', 0.0)):.4f}.",
+                f"- Routed-hybrid graph-top-evidence delta vs naive hybrid at that slice = {float(strongest.get('delta_hybrid_routed_graph_top_rate_minus_hybrid', 0.0)):.4f}.",
+                f"- Filtered-hybrid fallback rate at that slice = {float(strongest.get('hybrid_filtered_graph_filter_fallback_rate', 0.0)):.4f}.",
+                f"- Routed graph-first adherence at that slice = {float(strongest.get('hybrid_routed_graph_first_adherence_rate', 0.0)):.4f}.",
+                f"- Routed text-first adherence at that slice = {float(strongest.get('hybrid_routed_text_first_adherence_rate', 0.0)):.4f}.",
+            ]
+        )
+
+    out_path = output_dir / "final_hybrid_takeaways.md"
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Wrote {out_path}")
+
+
+def _materialize_hybrid_abstention(output_dir: Path) -> None:
+    summary_path = output_dir / "hybrid_abstention_summary.parquet"
+    by_language_path = output_dir / "hybrid_abstention_by_language.parquet"
+    if summary_path.exists():
+        summary = pd.read_parquet(summary_path)
+        summary.to_parquet(output_dir / "final_hybrid_abstention_summary.parquet", index=False)
+    if by_language_path.exists():
+        by_language = pd.read_parquet(by_language_path)
+        by_language.to_parquet(output_dir / "final_hybrid_abstention_by_language.parquet", index=False)
 
 
 def main() -> None:
@@ -165,12 +365,16 @@ def main() -> None:
             run_name,
             language,
             config_hash,
+            retrieval_mode,
             COUNT(*) AS question_count,
             SUM(CASE WHEN abstained THEN 1 ELSE 0 END) AS abstained_count,
-            AVG(citation_count)::DOUBLE AS avg_citations
+            AVG(citation_count)::DOUBLE AS avg_citations,
+            AVG(text_evidence_count)::DOUBLE AS avg_text_evidence_count,
+            AVG(graph_evidence_count)::DOUBLE AS avg_graph_evidence_count,
+            AVG(graph_support_score)::DOUBLE AS avg_graph_support_score
         FROM read_parquet('{eval_path}')
-        GROUP BY run_name, language, config_hash
-        ORDER BY run_name, language
+        GROUP BY run_name, language, config_hash, retrieval_mode
+        ORDER BY run_name, language, retrieval_mode
         """
     ).df()
     eval_overview["abstain_rate"] = (
@@ -183,11 +387,35 @@ def main() -> None:
             run_name,
             language,
             variant,
+            retrieval_mode,
+            hybrid_policy,
             COUNT(*) AS sample_count,
             SUM(CASE WHEN abstained THEN 1 ELSE 0 END) AS abstained_count,
-            AVG(citation_count)::DOUBLE AS avg_citations
+            AVG(citation_count)::DOUBLE AS avg_citations,
+            AVG(text_evidence_count)::DOUBLE AS avg_text_evidence_count,
+            AVG(graph_evidence_count)::DOUBLE AS avg_graph_evidence_count,
+            AVG(graph_support_score)::DOUBLE AS avg_graph_support_score,
+            AVG(graph_quality_score)::DOUBLE AS avg_graph_quality_score,
+            AVG(CASE WHEN graph_filter_fallback_used THEN 1 ELSE 0 END)::DOUBLE AS graph_filter_fallback_rate,
+            AVG(CASE WHEN top_evidence_type = 'graph' THEN 1 ELSE 0 END)::DOUBLE AS graph_top_evidence_rate,
+            AVG(CASE WHEN routing_decision = 'graph-first' THEN 1 ELSE 0 END)::DOUBLE AS graph_first_route_rate,
+            AVG(CASE WHEN routing_decision = 'text-first' THEN 1 ELSE 0 END)::DOUBLE AS text_first_route_rate,
+            AVG(
+                CASE
+                    WHEN routing_decision = 'graph-first' AND top_evidence_type = 'graph' THEN 1
+                    WHEN routing_decision = 'graph-first' THEN 0
+                    ELSE NULL
+                END
+            )::DOUBLE AS graph_first_adherence_rate,
+            AVG(
+                CASE
+                    WHEN routing_decision = 'text-first' AND top_evidence_type = 'text' THEN 1
+                    WHEN routing_decision = 'text-first' THEN 0
+                    ELSE NULL
+                END
+            )::DOUBLE AS text_first_adherence_rate
         FROM read_parquet('{ablation_path}')
-        GROUP BY run_name, language, variant
+        GROUP BY run_name, language, variant, retrieval_mode, hybrid_policy
         ORDER BY run_name, language, variant
         """
     ).df()
@@ -204,16 +432,20 @@ def main() -> None:
         "_".join([str(part) for part in col if str(part) != ""]).strip("_")
         for col in pivot.columns.to_flat_index()
     ]
-    if (
-        "abstain_rate_baseline" in pivot.columns
-        and "abstain_rate_no_rerank" in pivot.columns
-    ):
-        pivot["delta_abstain_rate_no_rerank_minus_baseline"] = (
-            pivot["abstain_rate_no_rerank"] - pivot["abstain_rate_baseline"]
+    if "abstain_rate_hybrid" in pivot.columns and "abstain_rate_text-only" in pivot.columns:
+        pivot["delta_abstain_rate_hybrid_minus_text_only"] = (
+            pivot["abstain_rate_hybrid"] - pivot["abstain_rate_text-only"]
         )
-    if "avg_citations_baseline" in pivot.columns and "avg_citations_no_rerank" in pivot.columns:
-        pivot["delta_avg_citations_no_rerank_minus_baseline"] = (
-            pivot["avg_citations_no_rerank"] - pivot["avg_citations_baseline"]
+    if "avg_citations_hybrid" in pivot.columns and "avg_citations_text-only" in pivot.columns:
+        pivot["delta_avg_citations_hybrid_minus_text_only"] = (
+            pivot["avg_citations_hybrid"] - pivot["avg_citations_text-only"]
+        )
+    if (
+        "avg_graph_support_score_hybrid" in pivot.columns
+        and "avg_graph_support_score_text-only" in pivot.columns
+    ):
+        pivot["delta_avg_graph_support_score_hybrid_minus_text_only"] = (
+            pivot["avg_graph_support_score_hybrid"] - pivot["avg_graph_support_score_text-only"]
         )
 
     eval_hashes = set(
@@ -241,6 +473,8 @@ def main() -> None:
     ablation_summary.to_parquet(output_dir / "final_ablation_summary.parquet", index=False)
     pivot.to_parquet(output_dir / "final_ablation_deltas.parquet", index=False)
     diagnostics.to_parquet(output_dir / "final_repro_diagnostics.parquet", index=False)
+    _materialize_hybrid_summary(output_dir=output_dir, ablation_summary=ablation_summary)
+    _materialize_hybrid_abstention(output_dir=output_dir)
 
     finetune_summary_path = output_dir / "finetune_eval_summary.parquet"
     finetune_by_language_path = output_dir / "finetune_eval_by_language.parquet"
@@ -314,6 +548,7 @@ def main() -> None:
             f"Missing required finetune summary artifact: {finetune_summary_path}"
         )
 
+    _write_hybrid_takeaways(output_dir=output_dir)
     _write_reader_takeaways(output_dir=output_dir)
 
     print("Wrote final result artifacts to", output_dir)

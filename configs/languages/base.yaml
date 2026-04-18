@@ -9,4 +9,7 @@ thresholds:
   abstain_min_support: 0.55
   abstain_max_conflict_ratio: 0.3
   verifier_min_confidence: 0.65
+  graph_min_path_score: 0.4
+  graph_min_path_count: 1
+  hybrid_min_text_evidence: 1
 model_overrides: {}

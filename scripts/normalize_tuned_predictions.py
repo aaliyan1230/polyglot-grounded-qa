@@ -52,6 +52,33 @@ def _to_bool(value: Any) -> bool:
     return False
 
 
+def _parse_freetext_answer(text: str) -> dict[str, Any] | None:
+    """Parse freetext model output with 'Answer: ...' pattern."""
+    answer = ""
+    citations: list[str] = []
+    abstained = False
+
+    answer_match = re.search(r"Answer:\s*(.+?)(?:\n|$)", text)
+    if answer_match:
+        answer = answer_match.group(1).strip()
+
+    citation_matches = re.findall(r"\[([^\]]+)\]", text.split("Citations:")[-1]) if "Citations:" in text else []
+    citations = [c.strip() for c in citation_matches if c.strip() and not c.startswith("NO_")]
+
+    abstain_phrases = {"i do not have enough evidence", "insufficient evidence", "cannot answer", "abstain"}
+    if any(phrase in answer.lower() for phrase in abstain_phrases) or not answer:
+        abstained = True
+
+    if not answer:
+        return None
+
+    return {
+        "answer": answer,
+        "citations": citations,
+        "abstained": abstained,
+    }
+
+
 def _normalize_record(row: dict[str, Any], idx: int) -> dict[str, Any] | None:
     sample_id = str(row.get("id", f"line-{idx}"))
 
@@ -73,6 +100,17 @@ def _normalize_record(row: dict[str, Any], idx: int) -> dict[str, Any] | None:
             break
 
     obj = _extract_json_obj(candidate_text)
+
+    # Handle wrapper format {"raw": "..."} from generate_tuned_predictions.py
+    if obj is not None and "raw" in obj and "answer" not in obj:
+        raw_text = str(obj["raw"])
+        inner_obj = _extract_json_obj(raw_text)
+        if inner_obj is not None and "answer" in inner_obj:
+            obj = inner_obj
+        else:
+            # Try to parse freetext "Answer: ..." pattern from raw output
+            obj = _parse_freetext_answer(raw_text)
+
     if obj is None:
         return None
 

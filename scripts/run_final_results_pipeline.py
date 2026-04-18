@@ -81,6 +81,11 @@ def main() -> None:
     if not args.skip_ablation:
         _run(["uv", "run", "python", "scripts/run_ablation.py"], cwd=root)
 
+    _run(["uv", "run", "python", "scripts/build_kg_cache.py"], cwd=root)
+    _run(["uv", "run", "python", "scripts/analyze_kg_coverage.py"], cwd=root)
+    _run(["uv", "run", "python", "scripts/analyze_kg_path_quality.py"], cwd=root)
+    _run(["uv", "run", "python", "scripts/analyze_hybrid_abstention.py"], cwd=root)
+
     if not args.skip_finetune:
         base_cmd = [
             "uv",

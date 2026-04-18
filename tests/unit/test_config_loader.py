@@ -13,3 +13,6 @@ def test_load_app_config_language_inheritance() -> None:
     assert "es-MX" in cfg.languages
     assert cfg.languages["es-MX"].parent == "es"
     assert cfg.languages["es-MX"].prompts.system
+    assert cfg.pipeline.retrieval.mode == "text"
+    assert cfg.pipeline.retrieval.hybrid_policy == "naive"
+    assert cfg.pipeline.retrieval.graph_top_k >= 1

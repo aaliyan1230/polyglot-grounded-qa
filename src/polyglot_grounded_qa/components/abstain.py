@@ -22,3 +22,37 @@ class ThresholdAbstentionPolicy:
             return False
         avg_support = sum(support_values) / len(support_values)
         return avg_support < self.thresholds.abstain_min_support
+
+
+@dataclass(slots=True)
+class GraphAwareAbstentionPolicy:
+    thresholds: ThresholdConfig
+
+    def should_abstain(self, answer: GroundedAnswer) -> bool:
+        fallback = ThresholdAbstentionPolicy(self.thresholds)
+        if fallback.should_abstain(answer):
+            return True
+
+        retrieval_mode = str(answer.metadata.get("retrieval_mode", "text"))
+        if retrieval_mode == "text":
+            return False
+
+        graph_evidence_count = int(answer.metadata.get("graph_evidence_count", 0))
+        graph_support_score = float(answer.metadata.get("graph_support_score", 0.0))
+        if graph_evidence_count < self.thresholds.graph_min_path_count:
+            return True
+        if graph_support_score < self.thresholds.graph_min_path_score:
+            return True
+
+        if retrieval_mode == "hybrid":
+            text_evidence_count = int(answer.metadata.get("text_evidence_count", 0))
+            if text_evidence_count < self.thresholds.hybrid_min_text_evidence:
+                return True
+            # In hybrid mode, graph evidence can inflate overall confidence.
+            # Check text support independently to catch hard negatives
+            # (real context that doesn't answer the question).
+            text_support = float(answer.metadata.get("text_support_score", 0.0))
+            if text_support > 0.0 and text_support < self.thresholds.hybrid_min_text_support:
+                return True
+
+        return False

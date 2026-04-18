@@ -136,6 +136,8 @@ def main() -> None:
     ]
     if adapter_path:
         generate_cmd.extend(["--adapter-path", adapter_path])
+    else:
+        generate_cmd.append("--no-adapter")
 
     _run(generate_cmd, cwd=root)
 

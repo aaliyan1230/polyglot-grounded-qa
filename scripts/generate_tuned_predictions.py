@@ -180,6 +180,7 @@ def _hf_adapter_predictions(
 
         inputs = tokenizer(prompt, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
+        input_len = inputs["input_ids"].shape[-1]
 
         with torch_module.no_grad():
             generated = model.generate(
@@ -189,7 +190,9 @@ def _hf_adapter_predictions(
                 do_sample=temperature > 0,
             )
 
-        text = tokenizer.decode(generated[0], skip_special_tokens=True)
+        # Strip the input prompt tokens so we only decode the model's new output.
+        new_tokens = generated[0][input_len:]
+        text = tokenizer.decode(new_tokens, skip_special_tokens=True)
         json_obj = _extract_json_obj(text)
         payload = json.dumps(json_obj if json_obj is not None else {"raw": text}, ensure_ascii=True)
 
@@ -239,6 +242,7 @@ def main() -> None:
     )
     parser.add_argument("--max-new-tokens", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--no-adapter", action="store_true", help="Skip adapter loading even if adapter_path is in config.")
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
@@ -252,7 +256,9 @@ def main() -> None:
 
     if args.base_model:
         base_model = args.base_model
-    if args.adapter_path:
+    if args.no_adapter:
+        adapter_path = ""
+    elif args.adapter_path:
         adapter_path = args.adapter_path
     if args.max_new_tokens is not None:
         max_new_tokens = args.max_new_tokens

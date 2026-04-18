@@ -49,6 +49,14 @@ def test_run_eval_script_writes_expected_columns() -> None:
         "answer",
         "abstained",
         "citation_count",
+        "retrieval_mode",
+        "hybrid_policy",
+        "routing_decision",
+        "graph_filter_fallback_used",
+        "top_evidence_type",
+        "top_chunk_id",
+        "text_evidence_count",
+        "graph_evidence_count",
     }
     assert expected.issubset(set(df.columns))
 
@@ -72,6 +80,14 @@ def test_run_eval_script_is_reproducible_on_key_outputs() -> None:
         "answer",
         "abstained",
         "citation_count",
+        "retrieval_mode",
+        "hybrid_policy",
+        "routing_decision",
+        "graph_filter_fallback_used",
+        "top_evidence_type",
+        "top_chunk_id",
+        "text_evidence_count",
+        "graph_evidence_count",
     ]
     first_stable = first.select(stable_cols).sort("query")
     second_stable = second.select(stable_cols).sort("query")
@@ -92,11 +108,144 @@ def test_run_ablation_script_writes_expected_columns() -> None:
         "timestamp_utc",
         "config_hash",
         "variant",
+        "query",
+        "query_category",
         "answer",
         "abstained",
         "citation_count",
+        "retrieval_mode",
+        "hybrid_policy",
+        "routing_decision",
+        "graph_filter_fallback_used",
+        "top_evidence_type",
+        "top_chunk_id",
+        "text_evidence_count",
+        "graph_evidence_count",
     }
     assert expected.issubset(set(df.columns))
+    assert {"text-only", "kg-only", "hybrid", "hybrid-path-filtered", "hybrid-routed"}.issubset(
+        set(df.get_column("variant").to_list())
+    )
+    assert {"base", "es", "es-MX", "fr", "tr"}.issubset(set(df.get_column("language").to_list()))
+
+
+def test_build_kg_cache_script_writes_seed_artifact() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(
+        ["uv", "run", "python", "scripts/build_kg_cache.py", "--offline", "--refresh"],
+        cwd=root,
+        check=True,
+    )
+
+    index_path = root / "artifacts" / "indexes" / "kg_seed_paths.parquet"
+    assert index_path.exists()
+
+    df = pl.read_parquet(index_path)
+    assert len(df) >= 4
+    assert {
+        "path_id",
+        "language",
+        "path_length",
+        "score",
+        "path_text",
+        "source",
+        "triples_json",
+    }.issubset(set(df.columns))
+
+
+def test_analyze_kg_coverage_script_writes_contract_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(["uv", "run", "python", "scripts/analyze_kg_coverage.py"], cwd=root, check=True)
+
+    summary_path = root / "artifacts" / "tables" / "kg_coverage_summary.parquet"
+    by_language_path = root / "artifacts" / "tables" / "kg_coverage_by_language.parquet"
+    report_path = root / "artifacts" / "tables" / "kg_coverage_report.md"
+
+    assert summary_path.exists()
+    assert by_language_path.exists()
+    assert report_path.exists()
+
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "## Coverage snapshot" in report_text
+    assert "## Failure buckets" in report_text
+
+    summary_df = pl.read_parquet(summary_path)
+    assert {
+        "failure_bucket",
+        "queries",
+        "avg_linked_entity_count",
+        "avg_returned_path_count",
+        "avg_max_path_score",
+    }.issubset(set(summary_df.columns))
+
+    by_language_df = pl.read_parquet(by_language_path)
+    assert {
+        "language",
+        "queries",
+        "path_yield_rate",
+        "avg_linked_entity_count",
+    }.issubset(set(by_language_df.columns))
+
+
+def test_analyze_kg_path_quality_script_writes_contract_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(["uv", "run", "python", "scripts/analyze_kg_path_quality.py"], cwd=root, check=True)
+
+    summary_path = root / "artifacts" / "tables" / "kg_path_quality_summary.parquet"
+    by_language_path = root / "artifacts" / "tables" / "kg_path_quality_by_language.parquet"
+    rows_path = root / "artifacts" / "tables" / "kg_path_quality_rows.parquet"
+    report_path = root / "artifacts" / "tables" / "kg_path_quality_report.md"
+
+    assert summary_path.exists()
+    assert by_language_path.exists()
+    assert rows_path.exists()
+    assert report_path.exists()
+
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "## Summary" in report_text
+    assert "## Sample audited paths" in report_text
+
+    summary_df = pl.read_parquet(summary_path)
+    assert {
+        "quality_label",
+        "leakage_risk",
+        "rows",
+        "avg_graph_path_score",
+    }.issubset(set(summary_df.columns))
+
+    by_language_df = pl.read_parquet(by_language_path)
+    assert {
+        "language",
+        "supporting_path_rate",
+        "explicit_restatement_rate",
+        "high_leakage_rate",
+    }.issubset(set(by_language_df.columns))
+
+
+def test_analyze_hybrid_abstention_script_writes_contract_outputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    subprocess.run(["uv", "run", "python", "scripts/analyze_hybrid_abstention.py"], cwd=root, check=True)
+
+    summary_path = root / "artifacts" / "tables" / "hybrid_abstention_summary.parquet"
+    by_language_path = root / "artifacts" / "tables" / "hybrid_abstention_by_language.parquet"
+    report_path = root / "artifacts" / "tables" / "hybrid_abstention_report.md"
+
+    assert summary_path.exists()
+    assert by_language_path.exists()
+    assert report_path.exists()
+
+    report_text = report_path.read_text(encoding="utf-8")
+    assert "## Overall" in report_text
+    assert "## By language" in report_text
+
+    summary_df = pl.read_parquet(summary_path)
+    assert {
+        "variant",
+        "abstain_accuracy",
+        "abstain_precision",
+        "abstain_recall",
+        "avg_graph_support_score",
+    }.issubset(set(summary_df.columns))
 
 
 def test_analyze_sft_dataset_script_writes_contract_outputs() -> None:

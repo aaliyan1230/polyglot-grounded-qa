@@ -35,3 +35,5 @@ data/benchmarks/*
 docs
 kaggle_artifacts/
 further-plan.md
+local
+*.zip
