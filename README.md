@@ -4,9 +4,9 @@ Multilingual grounded QA research repo focused on one question: can we improve t
 
 This repository answers that with a reusable package, notebook-backed experiments, and artifactized evaluations rather than a demo-first app.
 
-## What this repo achieved
+## What this experiment achieved
 
-The most honest result is this: a small QLoRA adapter (Qwen2.5-3B, ~540 steps) trained from scratch on 4322 XQuAD rows **triples the grounded trust score** vs the untrained baseline (0.18 → 0.56) and produces well-structured cited answers at 4× the rate of the unprompted base model.
+A small QLoRA adapter (Qwen2.5-3B, ~540 steps) trained from scratch on 4322 XQuAD rows **triples the grounded trust score** vs the untrained baseline (0.18 → 0.56) and produces well-structured cited answers at 4× the rate of the unprompted base model.
 
 Evaluation ran on 539 real XQuAD test rows (en/es/es-MX/fr/tr). All numbers below are **deltas vs `baseline-pipeline`**, which is the default pipeline with no citation training and no adapter.
 
