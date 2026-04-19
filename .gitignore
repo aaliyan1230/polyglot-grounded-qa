@@ -20,6 +20,12 @@ artifacts/tables/*
 !artifacts/runs/.gitkeep
 !artifacts/figures/.gitkeep
 !artifacts/tables/.gitkeep
+!artifacts/figures/fig1_trust_comparison.png
+!artifacts/figures/fig2_adapter_by_language.png
+!artifacts/figures/fig3_training_loss.png
+!artifacts/tables/meaningful_result_snapshot.md
+!artifacts/tables/final_reader_takeaways.md
+!artifacts/tables/finetune_variant_leaderboard.md
 
 data/corpora/*
 data/benchmarks/*
